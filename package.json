@@ -1,0 +1,17 @@
+{
+  "name": "weight-tracker-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 execute DB --local --file=migrations/0001_init.sql",
+    "migrate:remote": "wrangler d1 execute DB --remote --file=migrations/0001_init.sql",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240129.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.0"
+  }
+}

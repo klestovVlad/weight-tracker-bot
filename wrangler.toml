@@ -1,0 +1,19 @@
+name = "weight-tracker-bot"
+main = "src/index.ts"
+compatibility_date = "2024-01-29"
+
+# D1 Database binding
+# After creating D1 database, paste your database_id below
+[[d1_databases]]
+binding = "DB"
+database_name = "telegram-bot-db"
+database_id = "<YOUR_DATABASE_ID_HERE>"
+
+# Environment variables (secrets)
+# Set these via CLI:
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#   wrangler secret put OWNER_USER_ID
+#
+# For local development, create .dev.vars file:
+#   TELEGRAM_BOT_TOKEN=your_token_here
+#   OWNER_USER_ID=123456789
