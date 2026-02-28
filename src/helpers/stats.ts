@@ -1,7 +1,6 @@
 import { WeightRecord } from "../types";
 import { getTodayDate } from "../utils";
 
-const SPARKLINE_CHARS = "▁▂▃▄▅▆▇█";
 
 export interface ProgressStats {
   lastRecord: WeightRecord | null;
@@ -13,7 +12,7 @@ export interface ProgressStats {
   period: number;
   minWeight: number | null;
   maxWeight: number | null;
-  sparkline: string;
+  trendEmoji: string;
   recentEntries: Array<{ date: string; weight: number }>;
 }
 
@@ -44,31 +43,11 @@ export function calculateStreak(records: WeightRecord[]): number {
   return streak;
 }
 
-export function generateSparkline(records: WeightRecord[]): string {
-  if (records.length < 2) return "";
-
-  const sortedAsc = [...records].sort((a, b) => 
-    a.date.localeCompare(b.date)
-  );
-
-  const weights = sortedAsc.map(r => r.weight_kg);
-  const min = Math.min(...weights);
-  const max = Math.max(...weights);
-  const range = max - min;
-
-  if (range === 0) {
-    return SPARKLINE_CHARS[4].repeat(weights.length);
-  }
-
-  const maxIndex = SPARKLINE_CHARS.length - 1;
-
-  return weights
-    .map(w => {
-      const normalized = (w - min) / range;
-      const charIndex = Math.round(normalized * maxIndex);
-      return SPARKLINE_CHARS[charIndex];
-    })
-    .join("");
+export function getTrendEmoji(periodDelta: number | null): string {
+  if (periodDelta === null) return "";
+  if (periodDelta < -0.1) return "📉";
+  if (periodDelta > 0.1) return "📈";
+  return "➡️";
 }
 
 export function computeProgressStats(
@@ -88,7 +67,7 @@ export function computeProgressStats(
       period,
       minWeight: null,
       maxWeight: null,
-      sparkline: "",
+      trendEmoji: "",
       recentEntries: [],
     };
   }
@@ -120,7 +99,7 @@ export function computeProgressStats(
   const maxWeight = Math.max(...weights);
 
   const streak = calculateStreak(records);
-  const sparkline = generateSparkline(records);
+  const trendEmoji = getTrendEmoji(periodDelta);
 
   const recentLimit = period <= 7 ? 7 : 10;
   const recentEntries = sortedDesc.slice(0, recentLimit).map(r => ({
@@ -138,7 +117,7 @@ export function computeProgressStats(
     period,
     minWeight,
     maxWeight,
-    sparkline,
+    trendEmoji,
     recentEntries,
   };
 }

@@ -127,7 +127,10 @@ async function handleHistoryCallback(
 
   const lines: string[] = [];
 
-  lines.push(RU.progress_header(limit));
+  const header = stats.trendEmoji 
+    ? `${stats.trendEmoji} ${RU.progress_header(limit)}`
+    : RU.progress_header(limit);
+  lines.push(header);
 
   if (stats.lastRecord) {
     const dateFormatted = formatDateRu(stats.lastRecord.date);
@@ -149,12 +152,8 @@ async function handleHistoryCallback(
     lines.push(RU.progress_not_today);
   }
 
-  if (stats.sparkline) {
-    lines.push("");
-    lines.push(stats.sparkline);
-    if (stats.minWeight !== null && stats.maxWeight !== null) {
-      lines.push(RU.progress_min_max(stats.minWeight.toFixed(1), stats.maxWeight.toFixed(1)));
-    }
+  if (stats.minWeight !== null && stats.maxWeight !== null) {
+    lines.push(RU.progress_min_max(stats.minWeight.toFixed(1), stats.maxWeight.toFixed(1)));
   }
 
   if (stats.recentEntries.length > 0) {

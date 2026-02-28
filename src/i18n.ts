@@ -72,7 +72,7 @@ export const RU = {
   history_header: (count: number) => `📊 Последние ${count} записей:\n`,
   history_empty: "📭 Записей пока нет. Отправь свой первый вес!",
   
-  progress_header: (days: number) => `📈 Прогресс за ${days} дней\n`,
+  progress_header: (days: number) => `Прогресс за ${days} дней\n`,
   progress_last_entry: (date: string, weight: string) =>
     `📍 Последняя запись: ${date} — ${weight} кг`,
   progress_day_delta: (delta: string) => `Сегодня: Δ ${delta}`,
