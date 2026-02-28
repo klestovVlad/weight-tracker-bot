@@ -7,7 +7,7 @@ compatibility_date = "2024-01-29"
 [[d1_databases]]
 binding = "DB"
 database_name = "telegram-bot-db"
-database_id = "<YOUR_DATABASE_ID_HERE>"
+database_id = "6026b4e7-c2c2-49fd-9112-e427d111500c"
 
 # Environment variables (secrets)
 # Set these via CLI:
