@@ -23,14 +23,32 @@ interface TelegramMessage {
   text?: string;
 }
 
+interface TelegramCallbackQuery {
+  id: string;
+  from: TelegramUser;
+  message?: TelegramMessage;
+  data?: string;
+}
+
 interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 }
 
 interface SendMessageOptions {
   parse_mode?: "HTML" | "Markdown" | "MarkdownV2";
   reply_to_message_id?: number;
+  reply_markup?: InlineKeyboardMarkup;
+}
+
+interface InlineKeyboardButton {
+  text: string;
+  callback_data: string;
+}
+
+interface InlineKeyboardMarkup {
+  inline_keyboard: InlineKeyboardButton[][];
 }
 
 interface WeightRecord {
@@ -42,9 +60,16 @@ interface WeightRecord {
   updated_at: string;
 }
 
+interface PendingAction {
+  user_id: number;
+  action: string;
+  created_at: string;
+}
+
 const WEIGHT_MIN = 30;
 const WEIGHT_MAX = 300;
 const TIMEZONE = "Asia/Nicosia";
+const PENDING_ACTION_TTL_HOURS = 24;
 
 // ============== Telegram API ==============
 
@@ -67,12 +92,45 @@ async function sendMessage(
   if (options?.reply_to_message_id) {
     body.reply_to_message_id = options.reply_to_message_id;
   }
+  if (options?.reply_markup) {
+    body.reply_markup = options.reply_markup;
+  }
 
   return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+async function answerCallbackQuery(
+  token: string,
+  callbackQueryId: string,
+  text?: string
+): Promise<Response> {
+  const url = `https://api.telegram.org/bot${token}/answerCallbackQuery`;
+
+  const body: Record<string, unknown> = {
+    callback_query_id: callbackQueryId,
+  };
+
+  if (text) {
+    body.text = text;
+  }
+
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function createEditButton(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: "✏️ Edit last", callback_data: "edit_last" }]
+    ]
+  };
 }
 
 // ============== Utilities ==============
@@ -128,6 +186,13 @@ function isPrivateChat(message: TelegramMessage): boolean {
   return message.chat.type === "private";
 }
 
+function isPendingActionExpired(createdAt: string): boolean {
+  const created = new Date(createdAt + "Z");
+  const now = new Date();
+  const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  return diffHours > PENDING_ACTION_TTL_HOURS;
+}
+
 // ============== Database Operations ==============
 
 async function ensureUser(db: D1Database, user: TelegramUser): Promise<void> {
@@ -173,6 +238,44 @@ async function getUserDisplayName(db: D1Database, userId: number): Promise<strin
   return result?.display_name ?? "Unknown";
 }
 
+// ============== Pending Actions ==============
+
+async function getPendingAction(
+  db: D1Database,
+  userId: number
+): Promise<PendingAction | null> {
+  return db
+    .prepare("SELECT * FROM pending_actions WHERE user_id = ?")
+    .bind(userId)
+    .first<PendingAction>();
+}
+
+async function upsertPendingAction(
+  db: D1Database,
+  userId: number,
+  action: string
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO pending_actions (user_id, action, created_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         action = excluded.action,
+         created_at = datetime('now')`
+    )
+    .bind(userId, action)
+    .run();
+}
+
+async function clearPendingAction(db: D1Database, userId: number): Promise<void> {
+  await db
+    .prepare("DELETE FROM pending_actions WHERE user_id = ?")
+    .bind(userId)
+    .run();
+}
+
+// ============== Weight Operations ==============
+
 async function saveWeight(
   db: D1Database,
   userId: number,
@@ -206,6 +309,21 @@ async function getLastWeight(
     .first<WeightRecord>();
 }
 
+async function getLastWeightByUpdatedAt(
+  db: D1Database,
+  userId: number
+): Promise<WeightRecord | null> {
+  return db
+    .prepare(
+      `SELECT * FROM weights
+       WHERE user_id = ?
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    )
+    .bind(userId)
+    .first<WeightRecord>();
+}
+
 async function getPreviousWeight(
   db: D1Database,
   userId: number,
@@ -220,6 +338,22 @@ async function getPreviousWeight(
     )
     .bind(userId, beforeDate)
     .first<WeightRecord>();
+}
+
+async function updateWeightEntry(
+  db: D1Database,
+  recordId: number,
+  userId: number,
+  newWeightKg: number
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE weights
+       SET weight_kg = ?, updated_at = datetime('now')
+       WHERE id = ? AND user_id = ?`
+    )
+    .bind(newWeightKg, recordId, userId)
+    .run();
 }
 
 async function getWeightHistory(
@@ -281,11 +415,104 @@ async function handleWeightInput(
     groupMessage = `${displayName}: first entry`;
   }
 
-  await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, privateReply);
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, privateReply, {
+    reply_markup: createEditButton()
+  });
 
   const publicChatId = await getSetting(env.DB, "public_chat_id");
   if (publicChatId) {
     await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, groupMessage);
+  }
+
+  return new Response("OK");
+}
+
+async function handleEditWeight(
+  env: Env,
+  message: TelegramMessage,
+  weightKg: number
+): Promise<Response> {
+  const userId = message.from?.id;
+  if (!userId) {
+    return new Response("OK");
+  }
+
+  const lastRecord = await getLastWeightByUpdatedAt(env.DB, userId);
+
+  if (!lastRecord) {
+    await clearPendingAction(env.DB, userId);
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      "No entries to edit."
+    );
+  }
+
+  await updateWeightEntry(env.DB, lastRecord.id, userId, weightKg);
+  await clearPendingAction(env.DB, userId);
+
+  const previousRecord = await getPreviousWeight(env.DB, userId, lastRecord.date);
+
+  let privateReply: string;
+  let groupMessage: string;
+  const displayName = await getUserDisplayName(env.DB, userId);
+
+  if (previousRecord) {
+    const delta = weightKg - previousRecord.weight_kg;
+    privateReply = `Updated entry for ${lastRecord.date} to ${weightKg.toFixed(1)} kg. Δ ${formatDelta(delta)}`;
+    groupMessage = `${displayName}: Δ ${formatDelta(delta)} (updated)`;
+  } else {
+    privateReply = `Updated entry for ${lastRecord.date} to ${weightKg.toFixed(1)} kg.`;
+    groupMessage = `${displayName}: entry updated`;
+  }
+
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, privateReply, {
+    reply_markup: createEditButton()
+  });
+
+  const publicChatId = await getSetting(env.DB, "public_chat_id");
+  if (publicChatId) {
+    await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, groupMessage);
+  }
+
+  return new Response("OK");
+}
+
+// ============== Callback Query Handler ==============
+
+async function handleCallbackQuery(
+  env: Env,
+  callbackQuery: TelegramCallbackQuery
+): Promise<Response> {
+  const userId = callbackQuery.from.id;
+  const data = callbackQuery.data;
+  const message = callbackQuery.message;
+
+  await answerCallbackQuery(env.TELEGRAM_BOT_TOKEN, callbackQuery.id);
+
+  if (!message || message.chat.type !== "private") {
+    return new Response("OK");
+  }
+
+  if (data === "edit_last") {
+    const lastRecord = await getLastWeightByUpdatedAt(env.DB, userId);
+
+    if (!lastRecord) {
+      await sendMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        message.chat.id,
+        "No entries to edit."
+      );
+      return new Response("OK");
+    }
+
+    await upsertPendingAction(env.DB, userId, "edit_last");
+
+    await sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      `Send the new weight to replace your last entry (${lastRecord.date}: ${lastRecord.weight_kg.toFixed(1)} kg).`
+    );
   }
 
   return new Response("OK");
@@ -304,6 +531,8 @@ Send your weight in private chat:
 • 87,4
 • вес 87.4
 • /w 87.4
+
+After saving, use ✏️ Edit last button to correct mistakes.
 
 Commands:
 /me - Show your last weight
@@ -457,7 +686,30 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
     await ensureUser(env.DB, message.from);
   }
 
+  const userId = message.from?.id;
   const text = message.text?.trim() ?? "";
+
+  if (userId && isPrivateChat(message)) {
+    const pendingAction = await getPendingAction(env.DB, userId);
+
+    if (pendingAction) {
+      if (isPendingActionExpired(pendingAction.created_at)) {
+        await clearPendingAction(env.DB, userId);
+      } else if (pendingAction.action === "edit_last") {
+        const weight = parseWeight(text);
+
+        if (weight !== null) {
+          return handleEditWeight(env, message, weight);
+        } else {
+          return sendMessage(
+            env.TELEGRAM_BOT_TOKEN,
+            message.chat.id,
+            `Invalid weight. Please send a number between ${WEIGHT_MIN} and ${WEIGHT_MAX} kg.`
+          );
+        }
+      }
+    }
+  }
 
   const weight = parseWeight(text);
   if (weight !== null) {
@@ -479,12 +731,26 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleMe(env, message);
     case "/history":
       return handleHistory(env, message, args);
+    case "/cancel":
+      if (userId) {
+        await clearPendingAction(env.DB, userId);
+        return sendMessage(
+          env.TELEGRAM_BOT_TOKEN,
+          message.chat.id,
+          "Action cancelled."
+        );
+      }
+      return new Response("OK");
     default:
       return new Response("OK");
   }
 }
 
 async function handleUpdate(env: Env, update: TelegramUpdate): Promise<Response> {
+  if (update.callback_query) {
+    return handleCallbackQuery(env, update.callback_query);
+  }
+
   if (update.message) {
     return handleMessage(env, update.message);
   }

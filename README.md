@@ -1,6 +1,20 @@
-# Telegram Bot on Cloudflare Workers
+# Weight Tracker Telegram Bot
 
-Minimal Telegram bot using Cloudflare Workers, TypeScript, and D1 database.
+Telegram bot for tracking weight with privacy-first design. Built on Cloudflare Workers with D1 database.
+
+## Features
+
+- **Private weight tracking** — only you can see your absolute weights
+- **Group delta posting** — share only weight changes (Δ), never absolute values
+- **Edit last entry** — inline button to correct mistakes
+- **Daily entries** — one weight per day, overwrites if updated
+- **Timezone support** — Asia/Nicosia timezone for date calculation
+
+## Privacy
+
+- Absolute weights are visible ONLY to the user who submitted them
+- Owner cannot access other users' weights
+- Group messages show only delta changes, never absolute weights
 
 ## Setup Instructions
 
@@ -20,69 +34,37 @@ npm install
 ### 3. Create D1 Database
 
 ```bash
-# Create the database
-wrangler d1 create telegram-bot-db
-
+wrangler d1 create weight-tracker-db
 # Copy the database_id from output and paste it into wrangler.toml
 ```
 
 ### 4. Update wrangler.toml
 
-Replace `<YOUR_DATABASE_ID_HERE>` with your actual database ID:
+Replace `<YOUR_DATABASE_ID_HERE>` with your actual database ID.
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "telegram-bot-db"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
-
-### 5. Apply Database Migration
+### 5. Apply Database Migrations
 
 ```bash
-# For remote (production)
-npm run migrate:remote
-
-# For local development
-npm run migrate:local
+# Apply all migrations
+wrangler d1 execute DB --remote --file=migrations/0001_init.sql
+wrangler d1 execute DB --remote --file=migrations/0002_weights.sql
+wrangler d1 execute DB --remote --file=migrations/0003_pending_actions.sql
 ```
 
 ### 6. Set Secrets
 
 ```bash
 wrangler secret put TELEGRAM_BOT_TOKEN
-# Paste your bot token when prompted
-
 wrangler secret put OWNER_USER_ID
-# Paste your Telegram user ID when prompted
 ```
 
-### 7. Local Development (Optional)
-
-Create `.dev.vars` file in project root:
-
-```
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-OWNER_USER_ID=your_telegram_user_id
-```
-
-Run local development server:
-
-```bash
-npm run dev
-```
-
-### 8. Deploy Worker
+### 7. Deploy Worker
 
 ```bash
 npm run deploy
 ```
 
-Note the worker URL from output (e.g., `https://telegram-bot.your-subdomain.workers.dev`)
-
-### 9. Set Webhook
-
-Replace `<BOT_TOKEN>` and `<WORKER_URL>` with your values:
+### 8. Set Webhook
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
@@ -90,34 +72,54 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
   -d '{"url": "<WORKER_URL>"}'
 ```
 
-Example:
+## Usage
 
-```bash
-curl -X POST "https://api.telegram.org/bot123456789:ABCdef.../setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://telegram-bot.johndoe.workers.dev"}'
-```
+### Tracking Weight (Private Chat)
 
-### 10. Verify Webhook
+Send your weight in any of these formats:
+- `87.4`
+- `87,4`
+- `вес 87.4`
+- `/w 87.4`
 
-```bash
-curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
-```
+Bot will reply with confirmation and delta from previous entry.
 
-## Bot Commands
+### Edit Last Entry
 
-- `/start` - Welcome message (works in private chat)
-- `/setgroup` - Configure bot's group (owner only, must be in group)
-- `/status` - Show current configuration (owner only)
+After saving weight, press the **✏️ Edit last** button to correct mistakes.
+Send the new weight and the entry will be updated.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message |
+| `/me` | Show your last weight and delta |
+| `/history 7` | Show last 7 entries |
+| `/history 30` | Show last 30 entries |
+| `/cancel` | Cancel pending edit action |
+| `/setgroup` | Configure group for delta posting (owner only) |
+| `/status` | Show bot configuration (owner only) |
+
+## Group Posting
+
+1. Add bot to your group
+2. Send `/setgroup` in the group (owner only)
+3. When users log weight in private chat, only delta is posted to group:
+   - `Username: Δ -0.3 kg`
+   - `Username: first entry`
+   - `Username: Δ +0.2 kg (updated)` (after edit)
 
 ## Project Structure
 
 ```
 ├── src/
-│   └── index.ts          # Main worker code
+│   └── index.ts              # Main worker code
 ├── migrations/
-│   └── 0001_init.sql     # Database schema
-├── wrangler.toml         # Cloudflare configuration
+│   ├── 0001_init.sql         # Users and settings tables
+│   ├── 0002_weights.sql      # Weights table
+│   └── 0003_pending_actions.sql  # Pending actions table
+├── wrangler.toml
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -125,12 +127,16 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 
 ## Database Schema
 
-**users** - Telegram users who interact with the bot
+**users** — Telegram users
 - `user_id` (INTEGER, PRIMARY KEY)
-- `display_name` (TEXT)
-- `username` (TEXT)
-- `created_at` (TEXT)
+- `display_name`, `username`, `created_at`
 
-**settings** - Key-value storage
-- `key` (TEXT, PRIMARY KEY)
-- `value` (TEXT)
+**settings** — Key-value storage
+- `key` (TEXT, PRIMARY KEY), `value`
+
+**weights** — Weight entries (one per user per day)
+- `id`, `user_id`, `date`, `weight_kg`, `created_at`, `updated_at`
+- UNIQUE(user_id, date)
+
+**pending_actions** — Temporary action states (e.g., edit mode)
+- `user_id` (PRIMARY KEY), `action`, `created_at`
