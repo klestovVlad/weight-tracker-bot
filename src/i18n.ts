@@ -77,7 +77,7 @@ export const RU = {
     `📍 Последняя запись: ${date} — ${weight} кг`,
   progress_day_delta: (delta: string) => `Сегодня: Δ ${delta}`,
   progress_period_delta: (delta: string) => `За период: Δ ${delta}`,
-  progress_streak: (days: number) => `🔥 Стрик: ${days} дней`,
+  progress_streak: (days: number) => `🔥 Без пропусков: ${days} дней`,
   progress_checkins: (count: number, total: number) => `Отметок: ${count}/${total}`,
   progress_min_max: (min: string, max: string) => `мин ${min} — макс ${max}`,
   progress_not_today: "⚠️ Сегодня не отмечался",
