@@ -67,6 +67,7 @@ export const RU = {
   private_only: "💬 Эта команда работает только в личном чате.",
   must_be_in_group: "👥 Эту команду нужно использовать в группе.",
   action_cancelled: "❌ Действие отменено.",
+  rate_limited: "Слишком часто 😅 Подожди минутку и попробуй снова.",
 
   // Debug (owner only)
   debug_usage: "Использование: /debug_addday <смещение> <вес>\nПример: /debug_addday -2 85.5",

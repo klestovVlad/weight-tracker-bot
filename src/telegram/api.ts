@@ -1,5 +1,48 @@
 import { SendMessageOptions } from "../types";
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries: number = MAX_RETRIES
+): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.ok) {
+      return response;
+    }
+
+    if (response.status === 403 || response.status === 400) {
+      return response;
+    }
+
+    if (response.status === 429) {
+      const data = await response.clone().json() as { parameters?: { retry_after?: number } };
+      const retryAfter = data.parameters?.retry_after ?? 5;
+      if (attempt < retries) {
+        await sleep(Math.min(retryAfter * 1000, 10000));
+        continue;
+      }
+    }
+
+    if (response.status >= 500 && attempt < retries) {
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error("Max retries exceeded");
+}
+
 export async function sendMessage(
   token: string,
   chatId: number | string,
@@ -23,7 +66,7 @@ export async function sendMessage(
     body.reply_markup = options.reply_markup;
   }
 
-  return fetch(url, {
+  return fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -45,7 +88,7 @@ export async function answerCallbackQuery(
     body.text = text;
   }
 
-  return fetch(url, {
+  return fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

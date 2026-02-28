@@ -9,11 +9,12 @@ binding = "DB"
 database_name = "telegram-bot-db"
 database_id = "6026b4e7-c2c2-49fd-9112-e427d111500c"
 
-# Cron triggers for scheduled reports
+# Cron triggers for scheduled tasks
+# Reminders: 11:00 Asia/Nicosia (08:00 UTC) daily
 # Daily report: 19:00 Asia/Nicosia (16:00 UTC), Mon-Sat
 # Weekly report: Sunday 19:00 Asia/Nicosia (16:00 UTC)
 [triggers]
-crons = ["0 16 * * MON-SAT", "0 16 * * SUN"]
+crons = ["0 8 * * *", "0 16 * * MON-SAT", "0 16 * * SUN"]
 
 # Environment variables (secrets)
 # Set these via CLI:

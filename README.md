@@ -11,6 +11,7 @@ Telegram bot for tracking weight with privacy-first design. Built on Cloudflare 
 - **Timezone support** — Asia/Nicosia timezone for date calculation
 - **Scheduled reports** — daily (Mon-Sat) and weekly (Sunday) group reports at 19:00 Asia/Nicosia
 - **AI-powered reports** — OpenAI generates friendly intro/outro for group reports (optional)
+- **Daily reminders** — private reminder at 11:00 Asia/Nicosia for users who haven't logged weight
 
 ## Privacy
 
@@ -52,6 +53,8 @@ Replace `<YOUR_DATABASE_ID_HERE>` with your actual database ID.
 wrangler d1 execute DB --remote --file=migrations/0001_init.sql
 wrangler d1 execute DB --remote --file=migrations/0002_weights.sql
 wrangler d1 execute DB --remote --file=migrations/0003_pending_actions.sql
+wrangler d1 execute DB --remote --file=migrations/0004_reminders_sent.sql
+wrangler d1 execute DB --remote --file=migrations/0005_reliability.sql
 ```
 
 ### 6. Set Secrets
@@ -118,15 +121,46 @@ Send the new weight and the entry will be updated.
    - `Username: first entry`
    - `Username: Δ +0.2 kg (updated)` (after edit)
 
+## Напоминалки
+
+- Отправляются ежедневно в 11:00 Asia/Nicosia
+- Только в личные сообщения
+- Только пользователям, которые не внесли вес сегодня
+- Пользователь должен сначала написать боту `/start`
+- Debug команда: `/debug_run_reminders` (owner only)
+
 ## Project Structure
 
 ```
 ├── src/
-│   └── index.ts              # Main worker code
+│   ├── index.ts              # Main worker entry point
+│   ├── types.ts              # TypeScript interfaces
+│   ├── config.ts             # Constants
+│   ├── i18n.ts               # Russian translations
+│   ├── openai.ts             # OpenAI integration
+│   ├── utils.ts              # Utility functions
+│   ├── telegram/
+│   │   └── api.ts            # Telegram API with retry
+│   ├── db/
+│   │   ├── users.ts          # User operations
+│   │   ├── weights.ts        # Weight operations
+│   │   ├── settings.ts       # Settings operations
+│   │   └── pending-actions.ts
+│   ├── handlers/
+│   │   ├── commands.ts       # Command handlers
+│   │   ├── weight.ts         # Weight input handler
+│   │   ├── callback.ts       # Callback query handler
+│   │   ├── reports.ts        # Daily/weekly reports
+│   │   └── reminders.ts      # Reminder logic
+│   └── helpers/
+│       ├── job-lock.ts       # Idempotent job execution
+│       └── rate-limit.ts     # Anti-spam rate limiting
 ├── migrations/
-│   ├── 0001_init.sql         # Users and settings tables
-│   ├── 0002_weights.sql      # Weights table
-│   └── 0003_pending_actions.sql  # Pending actions table
+│   ├── 0001_init.sql
+│   ├── 0002_weights.sql
+│   ├── 0003_pending_actions.sql
+│   ├── 0004_reminders_sent.sql
+│   └── 0005_reliability.sql
 ├── wrangler.toml
 ├── package.json
 ├── tsconfig.json
@@ -148,3 +182,59 @@ Send the new weight and the entry will be updated.
 
 **pending_actions** — Temporary action states (e.g., edit mode)
 - `user_id` (PRIMARY KEY), `action`, `created_at`
+
+**reminders_sent** — Tracks sent reminders to avoid duplicates
+- `user_id`, `date` (PRIMARY KEY)
+- `sent_at`
+
+**cron_runs** — Tracks scheduled job executions (idempotency)
+- `job`, `date` (PRIMARY KEY)
+- `started_at`, `finished_at`, `status`, `info`
+
+**rate_limits** — Anti-spam rate limiting
+- `user_id`, `key` (PRIMARY KEY)
+- `window_start`, `count`
+
+## Reliability
+
+- **Idempotent cron jobs** — each scheduled task runs only once per day/week
+- **Rate limiting** — max 6 weight inputs per 2 minutes per user
+- **Telegram retry** — automatic retry on 429/5xx errors with backoff
+- **OpenAI timeout** — 10 second timeout, fallback to plain report on failure
+- **OpenAI validation** — suspicious numbers filtered, invalid JSON rejected
+- **Privacy guards** — group messages never contain absolute weights
+
+## Backup
+
+Export database weekly:
+
+```bash
+npx wrangler d1 export telegram-bot-db --output backup-$(date +%Y-%m-%d).sql
+```
+
+Store backups locally or in cloud storage.
+
+## Manual Test Plan
+
+### Privacy Tests
+- [ ] Send weight in private chat → absolute weight visible only to you
+- [ ] Check group message → only delta shown, never absolute weight
+- [ ] `/status` shows only settings, not user weights
+- [ ] OpenAI payload inspection → only deltas, never absolute weights
+
+### Cron Tests
+- [ ] `/debug_daily` sends report to group
+- [ ] `/debug_daily` second time → "already sent today"
+- [ ] `/debug_weekly` sends weekly report
+- [ ] `/debug_run_reminders` sends reminders to users without weight today
+
+### Reminder Tests
+- [ ] Remove today's weight with `/debug_addday 0 null`
+- [ ] Run `/debug_run_reminders` → should receive reminder
+- [ ] Run again → should skip (already sent)
+
+### Rate Limit Test
+- [ ] Send 7+ weights rapidly → should see "Слишком часто" message
+
+### OpenAI Fallback Test
+- [ ] If OpenAI fails, report still sends (without intro/outro)

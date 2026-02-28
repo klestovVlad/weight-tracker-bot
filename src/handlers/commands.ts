@@ -168,6 +168,27 @@ export async function handleDebugAddDay(
     return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_invalid_offset);
   }
 
+  const date = getDateWithOffset(offsetDays);
+
+  if (parts[1].toLowerCase() === "null" || parts[1].toLowerCase() === "delete") {
+    const { deleteWeight } = await import("../db/weights");
+    const deleted = await deleteWeight(env.DB, userId, date);
+    
+    if (deleted) {
+      return sendMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        message.chat.id,
+        `🗑️ [DEBUG] Удалена запись за ${date}`
+      );
+    } else {
+      return sendMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        message.chat.id,
+        `❌ [DEBUG] Запись за ${date} не найдена`
+      );
+    }
+  }
+
   const weightKg = parseWeight(parts[1]);
   if (weightKg === null) {
     return sendMessage(
@@ -176,8 +197,6 @@ export async function handleDebugAddDay(
       RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX)
     );
   }
-
-  const date = getDateWithOffset(offsetDays);
 
   await saveWeight(env.DB, userId, date, weightKg);
 
@@ -305,4 +324,36 @@ ${result.outro || "(пусто)"}
       `❌ Ошибка OpenAI: ${error}`
     );
   }
+}
+
+/**
+ * DEBUG: Show all admin commands.
+ * Usage: /debug
+ * 
+ * OWNER ONLY.
+ */
+export async function handleDebugHelp(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  const userId = message.from?.id;
+
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const helpText = `🔧 **Админские команды:**
+
+/debug — эта справка
+/debug_addday <смещение> <вес> — добавить запись
+  • /debug_addday -1 85.5 — вчера
+  • /debug_addday 0 null — удалить сегодня
+/debug_daily — отправить дневной отчёт
+/debug_weekly — отправить недельный отчёт
+/debug_openai — тест OpenAI с фейк-данными
+/debug_run_reminders — отправить напоминалки
+/setgroup — привязать группу (в группе)
+/status — статус бота`;
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, helpText);
 }

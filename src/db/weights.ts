@@ -233,3 +233,16 @@ export async function getWeightOnOrBeforeDate(
     .bind(userId, date)
     .first<WeightRecord>();
 }
+
+export async function deleteWeight(
+  db: D1Database,
+  userId: number,
+  date: string
+): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM weights WHERE user_id = ? AND date = ?")
+    .bind(userId, date)
+    .run();
+
+  return (result.meta?.changes ?? 0) > 0;
+}
