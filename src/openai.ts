@@ -1,4 +1,5 @@
 import { Env, ReportPayload, HumanizedReport } from "./types";
+import { logError } from "./helpers/logging";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_LENGTH = 600;
@@ -100,7 +101,7 @@ ${JSON.stringify(payload, null, 2)}`;
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error("OpenAI API error:", response.status);
+      logError(`OpenAI API error: ${response.status}`);
       return fallback;
     }
 
@@ -133,7 +134,7 @@ ${JSON.stringify(payload, null, 2)}`;
     
     if (containsSuspiciousNumbers(parsed.intro, allowedNumbers) ||
         containsSuspiciousNumbers(parsed.outro, allowedNumbers)) {
-      console.warn("OpenAI response contains suspicious numbers, using fallback");
+      logError("OpenAI response contains suspicious numbers, using fallback");
       return fallback;
     }
 
@@ -144,9 +145,9 @@ ${JSON.stringify(payload, null, 2)}`;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === "AbortError") {
-      console.error("OpenAI request timed out");
+      logError("OpenAI request timed out");
     } else {
-      console.error("OpenAI humanize error:", error);
+      logError("OpenAI humanize error", error);
     }
     return fallback;
   }

@@ -123,6 +123,7 @@ Press **📈 7 дней** or **📅 30 дней** to see your progress:
 | `/history 7` | Show last 7 entries |
 | `/history 30` | Show last 30 entries |
 | `/cancel` | Cancel pending edit action |
+| `/version` | Show bot version |
 | `/setgroup` | Configure group for delta posting (owner only) |
 | `/setbotusername <name>` | Set bot username for deep links (owner only) |
 | `/status` | Show bot configuration (owner only) |
@@ -286,3 +287,98 @@ Store backups locally or in cloud storage.
 
 ### OpenAI Fallback Test
 - [ ] If OpenAI fails, report still sends (without intro/outro)
+
+## Release Checklist
+
+Before going live:
+
+1. **Deploy worker**
+   ```bash
+   npx wrangler deploy
+   ```
+
+2. **Set webhook**
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<WORKER_URL>"
+   ```
+
+3. **Set secrets**
+   ```bash
+   npx wrangler secret put TELEGRAM_BOT_TOKEN
+   npx wrangler secret put OWNER_USER_ID
+   npx wrangler secret put OPENAI_API_KEY
+   ```
+
+4. **Set bot username** (in Telegram)
+   ```
+   /setbotusername your_bot_username
+   ```
+
+5. **Link group** (in your group chat)
+   ```
+   /setgroup
+   ```
+
+6. **Test reminders**
+   ```
+   /debug_run_reminders
+   ```
+
+7. **Test daily report**
+   ```
+   /debug_daily
+   ```
+
+8. **Invite friends** — ask them to press `/start` in bot's private chat
+
+9. **Check health endpoint**
+   ```bash
+   curl https://<WORKER_URL>/health
+   ```
+
+## Restore from Backup
+
+To restore database from backup:
+
+```bash
+npx wrangler d1 execute telegram-bot-db --file backup-YYYY-MM-DD.sql
+```
+
+Note: This will overwrite existing data. Make a fresh backup before restoring.
+
+## Troubleshooting
+
+### If bot stops working
+
+1. **Check logs**
+   ```bash
+   npx wrangler tail
+   ```
+
+2. **Check health endpoint**
+   ```bash
+   curl https://<WORKER_URL>/health
+   ```
+   - `db: "error"` → database issue
+   - Connection refused → worker not deployed
+
+3. **Check webhook**
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+   ```
+   - `pending_update_count` high → bot not responding
+   - `last_error_message` → shows recent errors
+
+4. **Check secrets**
+   - TELEGRAM_BOT_TOKEN — must be valid
+   - OWNER_USER_ID — must be your Telegram ID
+   - OPENAI_API_KEY — optional, reports work without it
+
+5. **Check Cloudflare billing**
+   - Workers have free tier limits
+   - D1 has storage limits
+
+6. **Re-deploy**
+   ```bash
+   npx wrangler deploy
+   ```

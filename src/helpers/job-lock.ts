@@ -1,4 +1,5 @@
 import { Env } from "../types";
+import { logInfo, logError } from "./logging";
 
 export interface JobResult {
   skipped: boolean;
@@ -19,8 +20,8 @@ export async function withJobLock(
       )
       .bind(jobName, dateKey)
       .run();
-  } catch (error) {
-    console.log(`Job ${jobName}/${dateKey} already running or completed, skipping`);
+  } catch {
+    logInfo(`Job ${jobName}/${dateKey} already running or completed, skipping`);
     return { skipped: true };
   }
 
@@ -50,7 +51,7 @@ export async function withJobLock(
       .bind(truncatedError, jobName, dateKey)
       .run();
 
-    console.error(`Job ${jobName}/${dateKey} failed:`, truncatedError);
+    logError(`Job ${jobName}/${dateKey} failed`, error);
     return { skipped: false, error: truncatedError };
   }
 }

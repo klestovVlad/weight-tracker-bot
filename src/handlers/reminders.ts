@@ -3,6 +3,7 @@ import { sendMessage } from "../telegram/api";
 import { getTodayDate } from "../utils";
 import { getAllUsers } from "../db/users";
 import { getWeightForDate } from "../db/weights";
+import { logError } from "../helpers/logging";
 
 const REMINDER_TEXT = "⏰ Напоминалка: отметь вес 🙂\nМожно просто числом, например: 87.4";
 
@@ -79,7 +80,7 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
         stats.errors++;
       }
     } catch (error) {
-      console.error(`Reminder error for user ${user.user_id}:`, error);
+      logError(`Reminder error for user ${user.user_id}`, error);
       stats.errors++;
     }
   }

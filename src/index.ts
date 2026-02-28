@@ -1,6 +1,6 @@
 import { Env, TelegramUpdate, TelegramMessage } from "./types";
-import { WEIGHT_MIN, WEIGHT_MAX } from "./config";
-import { parseWeight, isPrivateChat, isPendingActionExpired, getTodayDate } from "./utils";
+import { APP_VERSION, WEIGHT_MIN, WEIGHT_MAX } from "./config";
+import { parseWeight, isPrivateChat, isPendingActionExpired, getTodayDate, isOwner } from "./utils";
 import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
@@ -12,6 +12,7 @@ import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
 import { runReminders } from "./handlers/reminders";
 import { withJobLock, getWeekKey } from "./helpers/job-lock";
 import { checkRateLimit } from "./helpers/rate-limit";
+import { logInfo, logError, logJobStart, logJobFinish } from "./helpers/logging";
 
 async function handleMessage(env: Env, message: TelegramMessage): Promise<Response> {
   if (message.from) {
@@ -128,6 +129,11 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
         return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.action_cancelled);
       }
       return new Response("OK");
+    case "/version":
+      if (isPrivateChat(message)) {
+        return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, `🤖 Weight Tracker Bot v${APP_VERSION}`);
+      }
+      return new Response("OK");
     default:
       return new Response("OK");
   }
@@ -226,17 +232,44 @@ interface ScheduledEvent {
   scheduledTime: number;
 }
 
+async function handleHealthCheck(env: Env): Promise<Response> {
+  let dbStatus = "ok";
+  
+  try {
+    await env.DB.prepare("SELECT 1").first();
+  } catch {
+    dbStatus = "error";
+  }
+  
+  const response = {
+    status: "ok",
+    version: APP_VERSION,
+    time: new Date().toISOString(),
+    db: dbStatus,
+  };
+  
+  return new Response(JSON.stringify(response), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    
+    if (url.pathname === "/health") {
+      return handleHealthCheck(env);
+    }
+    
     if (request.method !== "POST") {
-      return new Response("Weight Tracker Bot Webhook", { status: 200 });
+      return new Response(`Weight Tracker Bot v${APP_VERSION}`, { status: 200 });
     }
 
     try {
       const update: TelegramUpdate = await request.json();
       return handleUpdate(env, update);
     } catch (error) {
-      console.error("Error processing update:", error);
+      logError("Error processing update", error);
       return new Response("Internal Server Error", { status: 500 });
     }
   },
@@ -246,22 +279,27 @@ export default {
     
     try {
       if (event.cron === "0 8 * * *") {
+        logJobStart("reminders");
         await withJobLock(env, "reminders", today, async () => {
           const stats = await runReminders(env);
-          console.log(`Reminders: sent=${stats.sent}, skipped=${stats.skipped}, errors=${stats.errors}`);
+          logJobFinish("reminders", stats);
         });
       } else if (event.cron === "0 16 * * SUN") {
+        logJobStart("weekly_report");
         const weekKey = getWeekKey(new Date());
         await withJobLock(env, "weekly_report", weekKey, async () => {
           await generateWeeklyReport(env);
+          logJobFinish("weekly_report");
         });
       } else if (event.cron === "0 16 * * MON-SAT") {
+        logJobStart("daily_report");
         await withJobLock(env, "daily_report", today, async () => {
           await generateDailyReport(env);
+          logJobFinish("daily_report");
         });
       }
     } catch (error) {
-      console.error("Error in scheduled task:", error);
+      logError("Error in scheduled task", error);
     }
   },
 };
