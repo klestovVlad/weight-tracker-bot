@@ -68,9 +68,19 @@ export const RU = {
     `📝 Отправь новый вес для записи ${date} (сейчас: ${weight} кг)`,
   no_entries_to_edit: "❌ Нет записей для редактирования",
 
-  // History
+  // History & Progress
   history_header: (count: number) => `📊 Последние ${count} записей:\n`,
   history_empty: "📭 Записей пока нет. Отправь свой первый вес!",
+  
+  progress_header: (days: number) => `📈 Прогресс за ${days} дней\n`,
+  progress_last_entry: (date: string, weight: string) =>
+    `📍 Последняя запись: ${date} — ${weight} кг`,
+  progress_day_delta: (delta: string) => `Сегодня: Δ ${delta}`,
+  progress_period_delta: (delta: string) => `За период: Δ ${delta}`,
+  progress_streak: (days: number) => `🔥 Стрик: ${days} дней`,
+  progress_checkins: (count: number, total: number) => `Отметок: ${count}/${total}`,
+  progress_min_max: (min: string, max: string) => `мин ${min} — макс ${max}`,
+  progress_not_today: "⚠️ Сегодня не отмечался",
 
   // /me command
   me_last_weight: (weight: string, date: string) =>

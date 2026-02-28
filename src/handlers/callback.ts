@@ -122,19 +122,51 @@ async function handleHistoryCallback(
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.history_empty);
   }
 
-  const lines = records.map((record, index) => {
-    const weight = record.weight_kg.toFixed(1);
-    const nextRecord = records[index + 1];
+  const { computeProgressStats, formatDateRu } = await import("../helpers/stats");
+  const stats = computeProgressStats(records, limit);
 
-    if (nextRecord) {
-      const delta = record.weight_kg - nextRecord.weight_kg;
-      return `${record.date}: ${weight} кг (${formatDeltaRu(delta)})`;
+  const lines: string[] = [];
+
+  lines.push(RU.progress_header(limit));
+
+  if (stats.lastRecord) {
+    const dateFormatted = formatDateRu(stats.lastRecord.date);
+    lines.push(RU.progress_last_entry(dateFormatted, stats.lastRecord.weight_kg.toFixed(1)));
+  }
+
+  if (stats.dayDelta !== null) {
+    lines.push(RU.progress_day_delta(formatDeltaRu(stats.dayDelta)));
+  }
+
+  if (stats.periodDelta !== null) {
+    lines.push(RU.progress_period_delta(formatDeltaRu(stats.periodDelta)));
+  }
+
+  lines.push(RU.progress_streak(stats.streak));
+  lines.push(RU.progress_checkins(stats.count, limit));
+
+  if (!stats.checkedInToday) {
+    lines.push(RU.progress_not_today);
+  }
+
+  if (stats.sparkline) {
+    lines.push("");
+    lines.push(stats.sparkline);
+    if (stats.minWeight !== null && stats.maxWeight !== null) {
+      lines.push(RU.progress_min_max(stats.minWeight.toFixed(1), stats.maxWeight.toFixed(1)));
     }
-    return `${record.date}: ${weight} кг`;
-  });
+  }
 
-  const header = RU.history_header(records.length);
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, header + lines.join("\n"));
+  if (stats.recentEntries.length > 0) {
+    lines.push("");
+    lines.push("📋 Записи:");
+    for (const entry of stats.recentEntries) {
+      const dateFormatted = formatDateRu(entry.date);
+      lines.push(`${dateFormatted}: ${entry.weight.toFixed(1)} кг`);
+    }
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, lines.join("\n"));
 }
 
 async function handleOwnerStatus(

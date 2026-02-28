@@ -100,6 +100,20 @@ Bot will reply with confirmation and delta from previous entry.
 After saving weight, press the **✏️ Edit last** button to correct mistakes.
 Send the new weight and the entry will be updated.
 
+### Personal Statistics (Private Only)
+
+Press **📈 7 дней** or **📅 30 дней** to see your progress:
+
+- Last entry with date and weight (visible only to you)
+- Today's delta (change from previous entry)
+- Period delta (change over 7/30 days)
+- Streak: consecutive days with entries
+- Check-in count
+- ASCII sparkline chart with min/max
+- Recent entries list
+
+**Privacy:** Personal stats including absolute weights are visible only in private chat. Group never sees actual weight values.
+
 ### Commands
 
 | Command | Description |
