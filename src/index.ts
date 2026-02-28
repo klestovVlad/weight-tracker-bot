@@ -5,9 +5,10 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
+import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
 
 async function handleMessage(env: Env, message: TelegramMessage): Promise<Response> {
   if (message.from) {
@@ -92,6 +93,10 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return new Response("OK");
     case "/debug_addday":
       return handleDebugAddDay(env, message, args);
+    case "/debug_daily":
+      return handleDebugDaily(env, message);
+    case "/debug_weekly":
+      return handleDebugWeekly(env, message);
     case "/cancel":
       if (userId) {
         await clearPendingAction(env.DB, userId);
@@ -115,6 +120,11 @@ async function handleUpdate(env: Env, update: TelegramUpdate): Promise<Response>
   return new Response("OK");
 }
 
+interface ScheduledEvent {
+  cron: string;
+  scheduledTime: number;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST") {
@@ -127,6 +137,18 @@ export default {
     } catch (error) {
       console.error("Error processing update:", error);
       return new Response("Internal Server Error", { status: 500 });
+    }
+  },
+
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    try {
+      if (event.cron === "0 18 * * SUN") {
+        await generateWeeklyReport(env);
+      } else if (event.cron === "0 18 * * MON-SAT") {
+        await generateDailyReport(env);
+      }
+    } catch (error) {
+      console.error("Error in scheduled task:", error);
     }
   },
 };

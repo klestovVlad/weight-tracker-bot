@@ -193,3 +193,47 @@ export async function handleDebugAddDay(
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, replyText);
 }
+
+/**
+ * DEBUG: Trigger daily report manually.
+ * Usage: /debug_daily
+ * 
+ * OWNER ONLY.
+ */
+export async function handleDebugDaily(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  const userId = message.from?.id;
+
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const { generateDailyReport } = await import("./reports");
+  await generateDailyReport(env);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, "🔧 [DEBUG] Ежедневный отчёт отправлен.");
+}
+
+/**
+ * DEBUG: Trigger weekly report manually.
+ * Usage: /debug_weekly
+ * 
+ * OWNER ONLY.
+ */
+export async function handleDebugWeekly(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  const userId = message.from?.id;
+
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const { generateWeeklyReport } = await import("./reports");
+  await generateWeeklyReport(env);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, "🔧 [DEBUG] Еженедельный отчёт отправлен.");
+}

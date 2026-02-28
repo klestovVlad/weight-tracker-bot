@@ -9,6 +9,12 @@ binding = "DB"
 database_name = "telegram-bot-db"
 database_id = "6026b4e7-c2c2-49fd-9112-e427d111500c"
 
+# Cron triggers for scheduled reports
+# Daily report: 21:00 Asia/Nicosia (18:00 UTC), Mon-Sat
+# Weekly report: Sunday 21:00 Asia/Nicosia (18:00 UTC)
+[triggers]
+crons = ["0 18 * * MON-SAT", "0 18 * * SUN"]
+
 # Environment variables (secrets)
 # Set these via CLI:
 #   wrangler secret put TELEGRAM_BOT_TOKEN
