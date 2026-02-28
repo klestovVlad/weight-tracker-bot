@@ -9,7 +9,12 @@ export function getDisplayName(user: TelegramUser): string {
 }
 
 export function getTodayDate(): string {
+  return getDateWithOffset(0);
+}
+
+export function getDateWithOffset(offsetDays: number): string {
   const now = new Date();
+  now.setDate(now.getDate() + offsetDays);
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE,
     year: "numeric",

@@ -1,8 +1,9 @@
 import { Env, TelegramMessage } from "../types";
 import { sendMessage } from "../telegram/api";
-import { isPrivateChat, isOwner, formatDelta } from "../utils";
+import { isPrivateChat, isOwner, formatDelta, getDateWithOffset, parseWeight } from "../utils";
+import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
 import { getSetting, setSetting } from "../db/settings";
-import { getLastWeight, getPreviousWeight, getWeightHistory } from "../db/weights";
+import { getLastWeight, getPreviousWeight, getWeightHistory, saveWeight } from "../db/weights";
 
 export async function handleStart(
   env: Env,
@@ -161,4 +162,78 @@ export async function handleHistory(
 
   const header = `Last ${records.length} entries:\n\n`;
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, header + lines.join("\n"));
+}
+
+// ============== DEBUG COMMANDS ==============
+// These commands are for testing purposes only and accessible only to the owner.
+
+/**
+ * DEBUG: Add weight entry with date offset for testing deltas.
+ * Usage: /debug_addday <offsetDays> <weight>
+ * Example: /debug_addday -2 85.5
+ * 
+ * OWNER ONLY. Never posts to group.
+ */
+export async function handleDebugAddDay(
+  env: Env,
+  message: TelegramMessage,
+  args: string
+): Promise<Response> {
+  if (!isPrivateChat(message)) {
+    return new Response("OK");
+  }
+
+  const userId = message.from?.id;
+
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      "This command is only available to the bot owner."
+    );
+  }
+
+  const parts = args.trim().split(/\s+/);
+  if (parts.length < 2) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      "Usage: /debug_addday <offsetDays> <weight>\nExample: /debug_addday -2 85.5"
+    );
+  }
+
+  const offsetDays = parseInt(parts[0], 10);
+  if (isNaN(offsetDays)) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      "Invalid offset. Must be an integer (e.g., -2, -1, 0)."
+    );
+  }
+
+  const weightKg = parseWeight(parts[1]);
+  if (weightKg === null) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      `Invalid weight. Must be between ${WEIGHT_MIN} and ${WEIGHT_MAX} kg.`
+    );
+  }
+
+  const { getDateWithOffset } = await import("../utils");
+  const date = getDateWithOffset(offsetDays);
+
+  await saveWeight(env.DB, userId, date, weightKg);
+
+  const previousRecord = await getPreviousWeight(env.DB, userId, date);
+
+  let replyText: string;
+  if (previousRecord) {
+    const delta = weightKg - previousRecord.weight_kg;
+    replyText = `[DEBUG] Inserted ${weightKg.toFixed(1)} kg for ${date}. Δ ${formatDelta(delta)}`;
+  } else {
+    replyText = `[DEBUG] Inserted ${weightKg.toFixed(1)} kg for ${date}. First entry.`;
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, replyText);
 }

@@ -4,7 +4,7 @@ import { parseWeight, isPrivateChat, isPendingActionExpired } from "./utils";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistory } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistory, handleDebugAddDay } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 
@@ -58,6 +58,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleMe(env, message);
     case "/history":
       return handleHistory(env, message, args);
+    case "/debug_addday":
+      return handleDebugAddDay(env, message, args);
     case "/cancel":
       if (userId) {
         await clearPendingAction(env.DB, userId);
