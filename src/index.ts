@@ -5,7 +5,7 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp, handleResetAllWeightsConfirm } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
@@ -123,6 +123,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleDebugRunRemindersWithLock(env, message);
     case "/debug":
       return handleDebugHelp(env, message);
+    case "/debug_reset_all":
+      return handleResetAllWeightsConfirm(env, message);
     case "/cancel":
       if (userId) {
         await clearPendingAction(env.DB, userId);

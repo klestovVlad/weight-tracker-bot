@@ -57,6 +57,13 @@ export const RU = {
     `${pos}) ${name}: ${checkins}/7 • без пропусков ${streak}`,
   leaderboard_no_data: "Нет данных за эту неделю.",
 
+  // Admin reset
+  reset_confirm: "⚠️ Это удалит ВСЕ записи веса у ВСЕХ пользователей!\n\nДля подтверждения нажми кнопку ниже.",
+  reset_done: (count: number) => `✅ Удалено ${count} записей веса.`,
+  reset_cancelled: "❌ Отменено.",
+  btn_confirm_reset: "🗑️ Да, удалить всё",
+  btn_cancel_reset: "❌ Отмена",
+
   // Help
   help_message: `ℹ️ **Как пользоваться ботом:**
 

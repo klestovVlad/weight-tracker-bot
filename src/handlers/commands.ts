@@ -425,9 +425,35 @@ export async function handleDebugHelp(
 /debug_weekly — отправить недельный отчёт
 /debug_openai — тест OpenAI с фейк-данными
 /debug_run_reminders — отправить напоминалки
+/debug_reset_all — удалить ВСЕ записи веса
 /setgroup — привязать группу (в группе)
 /setbotusername <name> — сохранить username бота
 /status — статус бота`;
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, helpText);
+}
+
+export async function handleResetAllWeightsConfirm(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  if (!isPrivateChat(message)) {
+    return new Response("OK");
+  }
+
+  const userId = message.from?.id;
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.reset_confirm, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: RU.btn_confirm_reset, callback_data: "admin_reset_confirm" },
+          { text: RU.btn_cancel_reset, callback_data: "admin_reset_cancel" }
+        ]
+      ]
+    }
+  });
 }

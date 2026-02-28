@@ -100,6 +100,12 @@ export async function handleCallbackQuery(
     case "menu_back_main":
       return handleShowMenu(env, message.chat.id, isOwnerUser, !isPrivate);
 
+    case "admin_reset_confirm":
+      return handleAdminResetConfirm(env, message.chat.id, isOwnerUser);
+
+    case "admin_reset_cancel":
+      return handleAdminResetCancel(env, message.chat.id);
+
     default:
       return new Response("OK");
   }
@@ -529,4 +535,31 @@ async function handleLeaderboardCheckinsCallback(
   }
 
   return handleLeaderboardCheckins(env, chatId);
+}
+
+async function handleAdminResetConfirm(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean
+): Promise<Response> {
+  if (!isOwnerUser) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
+  }
+
+  const result = await env.DB.prepare("DELETE FROM weights").run();
+  const count = result.meta?.changes ?? 0;
+
+  await env.DB.prepare("DELETE FROM reminders_sent").run();
+  await env.DB.prepare("DELETE FROM cron_runs").run();
+  await env.DB.prepare("DELETE FROM pending_actions").run();
+  await env.DB.prepare("DELETE FROM user_settings").run();
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.reset_done(count));
+}
+
+async function handleAdminResetCancel(
+  env: Env,
+  chatId: number
+): Promise<Response> {
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.reset_cancelled);
 }
