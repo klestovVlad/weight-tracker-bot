@@ -112,7 +112,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
     report += "\n\n" + outro;
   }
 
-  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, report);
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, report, { parse_mode: "HTML" });
 }
 
 export async function generateWeeklyReport(env: Env): Promise<void> {
@@ -198,5 +198,5 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
     report += "\n\n" + outro;
   }
 
-  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, report);
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, report, { parse_mode: "HTML" });
 }

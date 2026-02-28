@@ -165,19 +165,19 @@ ${link}`,
   // Daily report
   report_daily_header: "📊 Отчёт за сегодня:\n",
   report_daily_line: (name: string, dayDelta: string, totalDelta: string) =>
-    `• ${name}: сегодня ${dayDelta} | всего ${totalDelta}`,
+    `• <b>${name}</b>: сегодня ${dayDelta} | всего ${totalDelta}`,
   report_daily_first: (name: string) =>
-    `• ${name}: первая запись | всего —`,
+    `• <b>${name}</b>: первая запись | всего —`,
   report_daily_no_prev: (name: string, totalDelta: string) =>
-    `• ${name}: сегодня — | всего ${totalDelta}`,
+    `• <b>${name}</b>: сегодня — | всего ${totalDelta}`,
   report_no_entries_today: "📭 Сегодня никто не отметился.",
 
   // Weekly report
   report_weekly_header: "📈 Итоги недели:\n",
   report_weekly_line: (name: string, weekDelta: string, totalDelta: string, checkins: number) =>
-    `• ${name}: неделя ${weekDelta} | всего ${totalDelta} (${checkins}/7)`,
+    `• <b>${name}</b>: неделя ${weekDelta} | всего ${totalDelta} (${checkins}/7)`,
   report_weekly_no_week: (name: string, totalDelta: string, checkins: number) =>
-    `• ${name}: неделя — | всего ${totalDelta} (${checkins}/7)`,
+    `• <b>${name}</b>: неделя — | всего ${totalDelta} (${checkins}/7)`,
   report_no_entries_week: "📭 На этой неделе никто не отмечался.",
 
   // Common
