@@ -19,6 +19,7 @@ export interface ReportPayload {
   sumDayDelta: number;
   avgDayDelta: number;
   firstEntryCount: number;
+  firstEntryNames: string[];
   countSubmitted: number;
   countMissing: number;
 }

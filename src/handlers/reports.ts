@@ -47,6 +47,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
   let countWithDelta = 0;
   let hasRegressions = false;
   let firstEntryCount = 0;
+  const firstEntryNames: string[] = [];
 
   for (const user of usersToday) {
     const todayRecord = await getWeightForDate(env.DB, user.user_id, today);
@@ -73,6 +74,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
       if (overallStats && overallStats.totalEntries === 1) {
         lines.push(RU.report_daily_first(user.display_name));
         firstEntryCount++;
+        firstEntryNames.push(user.display_name);
       } else {
         lines.push(RU.report_daily_no_prev(user.display_name, totalDeltaStr));
       }
@@ -97,6 +99,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
     sumDayDelta: Math.round(sumDayDelta * 10) / 10,
     avgDayDelta: countWithDelta > 0 ? Math.round((sumDayDelta / countWithDelta) * 100) / 100 : 0,
     firstEntryCount,
+    firstEntryNames,
     countSubmitted: submitted.length,
     countMissing: missing.length,
   };
@@ -183,6 +186,7 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
     sumDayDelta: Math.round(sumWeekDelta * 10) / 10,
     avgDayDelta: countWithDelta > 0 ? Math.round((sumWeekDelta / countWithDelta) * 100) / 100 : 0,
     firstEntryCount: 0,
+    firstEntryNames: [],
     countSubmitted: submitted.length,
     countMissing: missing.length,
   };
