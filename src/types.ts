@@ -18,6 +18,9 @@ export interface ReportPayload {
   hasRegressions: boolean;
   sumDayDelta: number;
   avgDayDelta: number;
+  firstEntryCount: number;
+  countSubmitted: number;
+  countMissing: number;
 }
 
 export interface HumanizedReport {
