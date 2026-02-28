@@ -1,5 +1,6 @@
 import { WEIGHT_MIN, WEIGHT_MAX, TIMEZONE, PENDING_ACTION_TTL_HOURS } from "./config";
-import { TelegramUser, TelegramMessage, InlineKeyboardMarkup } from "./types";
+import { TelegramUser, TelegramMessage, InlineKeyboardMarkup, InlineKeyboardButton } from "./types";
+import { RU } from "./i18n";
 
 export function getDisplayName(user: TelegramUser): string {
   if (user.last_name) {
@@ -71,7 +72,40 @@ export function isOwner(userId: number, ownerUserId: string): boolean {
 export function createEditButton(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
-      [{ text: "✏️ Edit last", callback_data: "edit_last" }]
+      [{ text: RU.btn_edit_last, callback_data: "menu_edit_last" }]
+    ]
+  };
+}
+
+export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKeyboardMarkup {
+  const keyboard: InlineKeyboardButton[][] = [];
+
+  if (!isGroup) {
+    keyboard.push([{ text: RU.btn_enter_weight, callback_data: "menu_enter_weight" }]);
+    keyboard.push([
+      { text: RU.btn_history_7, callback_data: "menu_history_7" },
+      { text: RU.btn_history_30, callback_data: "menu_history_30" }
+    ]);
+    keyboard.push([{ text: RU.btn_edit_last, callback_data: "menu_edit_last" }]);
+  }
+
+  if (isOwnerUser) {
+    if (isGroup) {
+      keyboard.push([{ text: RU.btn_setgroup, callback_data: "owner_setgroup_here" }]);
+    }
+    keyboard.push([{ text: RU.btn_status, callback_data: "owner_status" }]);
+  }
+
+  return { inline_keyboard: keyboard };
+}
+
+export function createAfterWeightMenu(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: RU.btn_history_7, callback_data: "menu_history_7" },
+        { text: RU.btn_edit_last, callback_data: "menu_edit_last" }
+      ]
     ]
   };
 }

@@ -1,7 +1,8 @@
 import { Env, TelegramMessage } from "../types";
 import { sendMessage } from "../telegram/api";
-import { isPrivateChat, isOwner, formatDelta, getDateWithOffset, parseWeight } from "../utils";
+import { isPrivateChat, isOwner, getDateWithOffset, parseWeight, createMainMenu } from "../utils";
 import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
+import { RU, formatDeltaRu } from "../i18n";
 import { getSetting, setSetting } from "../db/settings";
 import { getLastWeight, getPreviousWeight, getWeightHistory, saveWeight } from "../db/weights";
 
@@ -9,24 +10,13 @@ export async function handleStart(
   env: Env,
   message: TelegramMessage
 ): Promise<Response> {
-  const welcomeText = `Welcome to Weight Tracker Bot!
+  const userId = message.from?.id;
+  const isOwnerUser = userId ? isOwner(userId, env.OWNER_USER_ID) : false;
+  const isGroup = message.chat.type !== "private";
 
-Send your weight in private chat:
-• 87.4
-• 87,4
-• вес 87.4
-• /w 87.4
-
-After saving, use ✏️ Edit last button to correct mistakes.
-
-Commands:
-/me - Show your last weight
-/history 7 - Show last 7 entries
-/history 30 - Show last 30 entries
-/status - Bot status (owner only)
-/setgroup - Configure group (owner only)`;
-
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, welcomeText);
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.welcome, {
+    reply_markup: createMainMenu(isOwnerUser, isGroup)
+  });
 }
 
 export async function handleSetGroup(
@@ -36,24 +26,16 @@ export async function handleSetGroup(
   const userId = message.from?.id;
 
   if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command is only available to the bot owner."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
   }
 
   if (message.chat.type === "private") {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command must be used in a group."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.must_be_in_group);
   }
 
   await setSetting(env.DB, "public_chat_id", message.chat.id.toString());
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, "Group configured.");
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.group_configured);
 }
 
 export async function handleStatus(
@@ -63,18 +45,14 @@ export async function handleStatus(
   const userId = message.from?.id;
 
   if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command is only available to the bot owner."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
   }
 
   const groupId = await getSetting(env.DB, "public_chat_id");
 
   const statusText = groupId
-    ? `Bot status:\nConfigured group ID: ${groupId}`
-    : "Bot status:\nGroup not set.";
+    ? RU.status_with_group(groupId)
+    : RU.status_no_group;
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, statusText);
 }
@@ -84,11 +62,7 @@ export async function handleMe(
   message: TelegramMessage
 ): Promise<Response> {
   if (!isPrivateChat(message)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command only works in private chat."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.private_only);
   }
 
   const userId = message.from?.id;
@@ -99,20 +73,16 @@ export async function handleMe(
   const lastRecord = await getLastWeight(env.DB, userId);
 
   if (!lastRecord) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "No weight records found. Send your weight to start tracking!"
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.me_no_records);
   }
 
   const previousRecord = await getPreviousWeight(env.DB, userId, lastRecord.date);
 
-  let replyText = `Last weight: ${lastRecord.weight_kg.toFixed(1)} kg (${lastRecord.date})`;
+  let replyText = RU.me_last_weight(lastRecord.weight_kg.toFixed(1), lastRecord.date);
 
   if (previousRecord) {
     const delta = lastRecord.weight_kg - previousRecord.weight_kg;
-    replyText += `\nΔ ${formatDelta(delta)} from ${previousRecord.date}`;
+    replyText += "\n" + RU.me_delta(formatDeltaRu(delta), previousRecord.date);
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, replyText);
@@ -121,14 +91,10 @@ export async function handleMe(
 export async function handleHistory(
   env: Env,
   message: TelegramMessage,
-  args: string
+  limit: number
 ): Promise<Response> {
   if (!isPrivateChat(message)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command only works in private chat."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.private_only);
   }
 
   const userId = message.from?.id;
@@ -136,17 +102,11 @@ export async function handleHistory(
     return new Response("OK");
   }
 
-  const days = parseInt(args, 10) || 7;
-  const limitedDays = Math.min(Math.max(days, 1), 90);
-
+  const limitedDays = Math.min(Math.max(limit, 1), 90);
   const records = await getWeightHistory(env.DB, userId, limitedDays);
 
   if (records.length === 0) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "No weight records found."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.history_empty);
   }
 
   const lines = records.map((record, index) => {
@@ -155,13 +115,22 @@ export async function handleHistory(
 
     if (nextRecord) {
       const delta = record.weight_kg - nextRecord.weight_kg;
-      return `${record.date}: ${weight} kg (Δ ${formatDelta(delta)})`;
+      return `${record.date}: ${weight} кг (${formatDeltaRu(delta)})`;
     }
-    return `${record.date}: ${weight} kg`;
+    return `${record.date}: ${weight} кг`;
   });
 
-  const header = `Last ${records.length} entries:\n\n`;
+  const header = RU.history_header(records.length);
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, header + lines.join("\n"));
+}
+
+export async function handleHistoryCommand(
+  env: Env,
+  message: TelegramMessage,
+  args: string
+): Promise<Response> {
+  const days = parseInt(args, 10) || 7;
+  return handleHistory(env, message, days);
 }
 
 // ============== DEBUG COMMANDS ==============
@@ -186,29 +155,17 @@ export async function handleDebugAddDay(
   const userId = message.from?.id;
 
   if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "This command is only available to the bot owner."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
   }
 
   const parts = args.trim().split(/\s+/);
   if (parts.length < 2) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "Usage: /debug_addday <offsetDays> <weight>\nExample: /debug_addday -2 85.5"
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_usage);
   }
 
   const offsetDays = parseInt(parts[0], 10);
   if (isNaN(offsetDays)) {
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "Invalid offset. Must be an integer (e.g., -2, -1, 0)."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_invalid_offset);
   }
 
   const weightKg = parseWeight(parts[1]);
@@ -216,11 +173,10 @@ export async function handleDebugAddDay(
     return sendMessage(
       env.TELEGRAM_BOT_TOKEN,
       message.chat.id,
-      `Invalid weight. Must be between ${WEIGHT_MIN} and ${WEIGHT_MAX} kg.`
+      RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX)
     );
   }
 
-  const { getDateWithOffset } = await import("../utils");
   const date = getDateWithOffset(offsetDays);
 
   await saveWeight(env.DB, userId, date, weightKg);
@@ -230,9 +186,9 @@ export async function handleDebugAddDay(
   let replyText: string;
   if (previousRecord) {
     const delta = weightKg - previousRecord.weight_kg;
-    replyText = `[DEBUG] Inserted ${weightKg.toFixed(1)} kg for ${date}. Δ ${formatDelta(delta)}`;
+    replyText = RU.debug_inserted(weightKg.toFixed(1), date, formatDeltaRu(delta));
   } else {
-    replyText = `[DEBUG] Inserted ${weightKg.toFixed(1)} kg for ${date}. First entry.`;
+    replyText = RU.debug_inserted_first(weightKg.toFixed(1), date);
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, replyText);

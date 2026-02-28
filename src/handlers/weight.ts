@@ -1,6 +1,7 @@
 import { Env, TelegramMessage } from "../types";
 import { sendMessage } from "../telegram/api";
-import { isPrivateChat, getTodayDate, formatDelta, createEditButton } from "../utils";
+import { isPrivateChat, getTodayDate, createAfterWeightMenu } from "../utils";
+import { RU, formatDeltaRu } from "../i18n";
 import { getUserDisplayName } from "../db/users";
 import { getSetting } from "../db/settings";
 import {
@@ -36,15 +37,15 @@ export async function handleWeightInput(
 
   if (previousRecord) {
     const delta = weightKg - previousRecord.weight_kg;
-    privateReply = `Saved ${weightKg.toFixed(1)} kg for ${today}. Δ ${formatDelta(delta)}`;
-    groupMessage = `${displayName}: Δ ${formatDelta(delta)}`;
+    privateReply = RU.weight_saved(weightKg.toFixed(1), today, formatDeltaRu(delta));
+    groupMessage = RU.group_delta(displayName, formatDeltaRu(delta));
   } else {
-    privateReply = `Saved ${weightKg.toFixed(1)} kg for ${today}. First entry!`;
-    groupMessage = `${displayName}: first entry`;
+    privateReply = RU.weight_saved_first(weightKg.toFixed(1), today);
+    groupMessage = RU.group_first_entry(displayName);
   }
 
   await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, privateReply, {
-    reply_markup: createEditButton()
+    reply_markup: createAfterWeightMenu()
   });
 
   const publicChatId = await getSetting(env.DB, "public_chat_id");
@@ -69,11 +70,7 @@ export async function handleEditWeight(
 
   if (!lastRecord) {
     await clearPendingAction(env.DB, userId);
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      message.chat.id,
-      "No entries to edit."
-    );
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.no_entries_to_edit);
   }
 
   await updateWeightEntry(env.DB, lastRecord.id, userId, weightKg);
@@ -87,15 +84,15 @@ export async function handleEditWeight(
 
   if (previousRecord) {
     const delta = weightKg - previousRecord.weight_kg;
-    privateReply = `Updated entry for ${lastRecord.date} to ${weightKg.toFixed(1)} kg. Δ ${formatDelta(delta)}`;
-    groupMessage = `${displayName}: Δ ${formatDelta(delta)} (updated)`;
+    privateReply = RU.weight_updated(weightKg.toFixed(1), lastRecord.date, formatDeltaRu(delta));
+    groupMessage = RU.group_updated(displayName, formatDeltaRu(delta));
   } else {
-    privateReply = `Updated entry for ${lastRecord.date} to ${weightKg.toFixed(1)} kg.`;
-    groupMessage = `${displayName}: entry updated`;
+    privateReply = RU.weight_updated_no_delta(weightKg.toFixed(1), lastRecord.date);
+    groupMessage = RU.group_updated_no_delta(displayName);
   }
 
   await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, privateReply, {
-    reply_markup: createEditButton()
+    reply_markup: createAfterWeightMenu()
   });
 
   const publicChatId = await getSetting(env.DB, "public_chat_id");

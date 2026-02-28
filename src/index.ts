@@ -1,10 +1,11 @@
 import { Env, TelegramUpdate, TelegramMessage } from "./types";
 import { WEIGHT_MIN, WEIGHT_MAX } from "./config";
 import { parseWeight, isPrivateChat, isPendingActionExpired } from "./utils";
+import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistory, handleDebugAddDay } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 
@@ -31,7 +32,20 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
           return sendMessage(
             env.TELEGRAM_BOT_TOKEN,
             message.chat.id,
-            `Invalid weight. Please send a number between ${WEIGHT_MIN} and ${WEIGHT_MAX} kg.`
+            RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX)
+          );
+        }
+      } else if (pendingAction.action === "enter_weight") {
+        const weight = parseWeight(text);
+
+        if (weight !== null) {
+          await clearPendingAction(env.DB, userId);
+          return handleWeightInput(env, message, weight);
+        } else {
+          return sendMessage(
+            env.TELEGRAM_BOT_TOKEN,
+            message.chat.id,
+            RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX)
           );
         }
       }
@@ -57,17 +71,31 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
     case "/me":
       return handleMe(env, message);
     case "/history":
-      return handleHistory(env, message, args);
+      return handleHistoryCommand(env, message, args);
+    case "/edit":
+      if (userId && isPrivateChat(message)) {
+        const { upsertPendingAction } = await import("./db/pending-actions");
+        const { getLastWeightByUpdatedAt } = await import("./db/weights");
+        
+        const lastRecord = await getLastWeightByUpdatedAt(env.DB, userId);
+        if (!lastRecord) {
+          return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.no_entries_to_edit);
+        }
+        
+        await upsertPendingAction(env.DB, userId, "edit_last");
+        return sendMessage(
+          env.TELEGRAM_BOT_TOKEN,
+          message.chat.id,
+          RU.ask_edit_weight(lastRecord.date, lastRecord.weight_kg.toFixed(1))
+        );
+      }
+      return new Response("OK");
     case "/debug_addday":
       return handleDebugAddDay(env, message, args);
     case "/cancel":
       if (userId) {
         await clearPendingAction(env.DB, userId);
-        return sendMessage(
-          env.TELEGRAM_BOT_TOKEN,
-          message.chat.id,
-          "Action cancelled."
-        );
+        return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.action_cancelled);
       }
       return new Response("OK");
     default:
