@@ -45,6 +45,12 @@ export async function handleCallbackQuery(
     case "show_menu":
       return handleShowMenu(env, message.chat.id, isOwnerUser, !isPrivate);
 
+    case "debug_daily":
+      return handleDebugDaily(env, message.chat.id, isOwnerUser);
+
+    case "debug_weekly":
+      return handleDebugWeekly(env, message.chat.id, isOwnerUser);
+
     default:
       return new Response("OK");
   }
@@ -168,4 +174,34 @@ async function handleShowMenu(
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.welcome, {
     reply_markup: createMainMenu(isOwnerUser, isGroup)
   });
+}
+
+async function handleDebugDaily(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean
+): Promise<Response> {
+  if (!isOwnerUser) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
+  }
+
+  const { generateDailyReport } = await import("./reports");
+  await generateDailyReport(env);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🔧 Ежедневный отчёт отправлен.");
+}
+
+async function handleDebugWeekly(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean
+): Promise<Response> {
+  if (!isOwnerUser) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
+  }
+
+  const { generateWeeklyReport } = await import("./reports");
+  await generateWeeklyReport(env);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🔧 Еженедельный отчёт отправлен.");
 }

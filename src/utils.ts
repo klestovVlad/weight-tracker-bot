@@ -94,6 +94,10 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       keyboard.push([{ text: RU.btn_setgroup, callback_data: "owner_setgroup_here" }]);
     }
     keyboard.push([{ text: RU.btn_status, callback_data: "owner_status" }]);
+    keyboard.push([
+      { text: RU.btn_debug_daily, callback_data: "debug_daily" },
+      { text: RU.btn_debug_weekly, callback_data: "debug_weekly" }
+    ]);
   }
 
   return { inline_keyboard: keyboard };
