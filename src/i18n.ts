@@ -16,8 +16,10 @@ export const RU = {
   btn_edit_last: "✏️ Изменить",
   btn_status: "⚙️ Статус",
   btn_setgroup: "👥 Привязать группу",
-  btn_debug_daily: "🔧 Дневной отчёт",
-  btn_debug_weekly: "🔧 Недельный отчёт",
+  btn_debug_daily: "🔧 Дневной",
+  btn_debug_weekly: "🔧 Недельный",
+  btn_debug_openai: "🤖 Тест AI",
+  btn_send_report: "📤 Отчёт в группу",
 
   // Weight input
   ask_weight: "📝 Отправь свой вес (например: 87.4)",

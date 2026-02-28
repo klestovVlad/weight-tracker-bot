@@ -2,6 +2,27 @@ export interface Env {
   DB: D1Database;
   TELEGRAM_BOT_TOKEN: string;
   OWNER_USER_ID: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+}
+
+export interface ReportPayload {
+  date: string;
+  kind: "daily" | "weekly";
+  submitted: Array<{
+    name: string;
+    dayDelta: number | null;
+    totalDelta: number | null;
+  }>;
+  missing: string[];
+  hasRegressions: boolean;
+  sumDayDelta: number;
+  avgDayDelta: number;
+}
+
+export interface HumanizedReport {
+  intro: string;
+  outro: string;
 }
 
 export interface TelegramUser {

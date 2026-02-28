@@ -9,12 +9,15 @@ Telegram bot for tracking weight with privacy-first design. Built on Cloudflare 
 - **Edit last entry** — inline button to correct mistakes
 - **Daily entries** — one weight per day, overwrites if updated
 - **Timezone support** — Asia/Nicosia timezone for date calculation
+- **Scheduled reports** — daily (Mon-Sat) and weekly (Sunday) group reports at 19:00 Asia/Nicosia
+- **AI-powered reports** — OpenAI generates friendly intro/outro for group reports (optional)
 
 ## Privacy
 
 - Absolute weights are visible ONLY to the user who submitted them
 - Owner cannot access other users' weights
 - Group messages show only delta changes, never absolute weights
+- **OpenAI integration**: Only names and deltas are sent to OpenAI — absolute weights are NEVER shared with external services
 
 ## Setup Instructions
 
@@ -56,6 +59,11 @@ wrangler d1 execute DB --remote --file=migrations/0003_pending_actions.sql
 ```bash
 wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put OWNER_USER_ID
+
+# Optional: OpenAI for AI-generated report intro/outro
+wrangler secret put OPENAI_API_KEY
+# Optional: specify model (defaults to gpt-4o-mini)
+wrangler secret put OPENAI_MODEL
 ```
 
 ### 7. Deploy Worker

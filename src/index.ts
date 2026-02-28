@@ -5,7 +5,7 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
@@ -97,6 +97,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleDebugDaily(env, message);
     case "/debug_weekly":
       return handleDebugWeekly(env, message);
+    case "/debug_openai":
+      return handleDebugOpenai(env, message);
     case "/cancel":
       if (userId) {
         await clearPendingAction(env.DB, userId);
@@ -142,9 +144,9 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     try {
-      if (event.cron === "0 18 * * SUN") {
+      if (event.cron === "0 16 * * SUN") {
         await generateWeeklyReport(env);
-      } else if (event.cron === "0 18 * * MON-SAT") {
+      } else if (event.cron === "0 16 * * MON-SAT") {
         await generateDailyReport(env);
       }
     } catch (error) {

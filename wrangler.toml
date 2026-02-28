@@ -10,16 +10,22 @@ database_name = "telegram-bot-db"
 database_id = "6026b4e7-c2c2-49fd-9112-e427d111500c"
 
 # Cron triggers for scheduled reports
-# Daily report: 21:00 Asia/Nicosia (18:00 UTC), Mon-Sat
-# Weekly report: Sunday 21:00 Asia/Nicosia (18:00 UTC)
+# Daily report: 19:00 Asia/Nicosia (16:00 UTC), Mon-Sat
+# Weekly report: Sunday 19:00 Asia/Nicosia (16:00 UTC)
 [triggers]
-crons = ["0 18 * * MON-SAT", "0 18 * * SUN"]
+crons = ["0 16 * * MON-SAT", "0 16 * * SUN"]
 
 # Environment variables (secrets)
 # Set these via CLI:
 #   wrangler secret put TELEGRAM_BOT_TOKEN
 #   wrangler secret put OWNER_USER_ID
+#   wrangler secret put OPENAI_API_KEY
+#
+# Optional (defaults to gpt-4o-mini):
+#   wrangler secret put OPENAI_MODEL
 #
 # For local development, create .dev.vars file:
 #   TELEGRAM_BOT_TOKEN=your_token_here
 #   OWNER_USER_ID=123456789
+#   OPENAI_API_KEY=sk-...
+#   OPENAI_MODEL=gpt-4o-mini

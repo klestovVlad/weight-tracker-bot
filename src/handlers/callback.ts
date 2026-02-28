@@ -51,6 +51,12 @@ export async function handleCallbackQuery(
     case "debug_weekly":
       return handleDebugWeekly(env, message.chat.id, isOwnerUser);
 
+    case "debug_openai":
+      return handleDebugOpenai(env, message.chat.id, isOwnerUser);
+
+    case "send_report":
+      return handleSendReport(env, message.chat.id, isOwnerUser);
+
     default:
       return new Response("OK");
   }
@@ -204,4 +210,84 @@ async function handleDebugWeekly(
   await generateWeeklyReport(env);
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🔧 Еженедельный отчёт отправлен.");
+}
+
+async function handleDebugOpenai(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean
+): Promise<Response> {
+  if (!isOwnerUser) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
+  }
+
+  if (!env.OPENAI_API_KEY) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      chatId,
+      "❌ OPENAI_API_KEY не настроен."
+    );
+  }
+
+  const { humanizeReport } = await import("../openai");
+
+  const testPayload = {
+    date: "28.02.2026",
+    kind: "daily" as const,
+    submitted: [
+      { name: "Алексей", dayDelta: -0.5, totalDelta: -3.2 },
+      { name: "Мария", dayDelta: 0.2, totalDelta: -1.8 },
+      { name: "Иван", dayDelta: null, totalDelta: null },
+    ],
+    missing: ["Ольга", "Дмитрий"],
+    hasRegressions: true,
+    sumDayDelta: -0.3,
+    avgDayDelta: -0.15,
+  };
+
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🤖 Запрос в OpenAI...");
+
+  try {
+    const result = await humanizeReport(testPayload, env);
+
+    const response = `🤖 OpenAI ответ:
+
+Intro:
+${result.intro || "(пусто)"}
+
+Outro:
+${result.outro || "(пусто)"}
+
+Model: ${env.OPENAI_MODEL || "gpt-4o-mini"}`;
+
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, response);
+  } catch (error) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, `❌ Ошибка: ${error}`);
+  }
+}
+
+async function handleSendReport(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean
+): Promise<Response> {
+  if (!isOwnerUser) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
+  }
+
+  const publicChatId = await getSetting(env.DB, "public_chat_id");
+  if (!publicChatId) {
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      chatId,
+      "❌ Группа не привязана. Используй /setgroup в группе."
+    );
+  }
+
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "📤 Отправляю отчёт в группу...");
+
+  const { generateDailyReport } = await import("./reports");
+  await generateDailyReport(env);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "✅ Отчёт отправлен!");
 }

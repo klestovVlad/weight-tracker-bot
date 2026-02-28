@@ -24,3 +24,16 @@ export async function getUserDisplayName(db: D1Database, userId: number): Promis
 
   return result?.display_name ?? "Unknown";
 }
+
+export interface UserRecord {
+  user_id: number;
+  display_name: string;
+}
+
+export async function getAllUsers(db: D1Database): Promise<UserRecord[]> {
+  const result = await db
+    .prepare("SELECT user_id, display_name FROM users")
+    .all<UserRecord>();
+
+  return result.results ?? [];
+}
