@@ -18,12 +18,44 @@ export const RU = {
   btn_history_30: "📅 30 дней",
   btn_edit_last: "✏️ Изменить",
   btn_help: "ℹ️ Как пользоваться",
+  btn_chart: "📊 График",
+  btn_vacation: "🌴 Отпуск",
+  btn_leaderboard: "🏆 Лидерборд",
+  btn_back: "⬅️ Назад",
   btn_status: "⚙️ Статус",
   btn_setgroup: "👥 Привязать группу",
   btn_debug_daily: "🔧 Дневной",
   btn_debug_weekly: "🔧 Недельный",
   btn_debug_openai: "🤖 Тест AI",
   btn_send_report: "📤 Отчёт в группу",
+
+  // Chart
+  chart_pick_period: "📊 Выбери период для графика:",
+  chart_not_enough_data: "Недостаточно данных для графика. Внеси хотя бы 2 записи 🙂",
+  chart_caption: (delta: string, min: string, max: string) =>
+    `Δ за период: ${delta} • мин ${min} • макс ${max}`,
+  chart_title_7: "Вес — 7 дней",
+  chart_title_30: "Вес — 30 дней",
+  chart_title_90: "Вес — 90 дней",
+  chart_title_180: "Вес — 180 дней",
+  chart_title_all: "Вес — с начала",
+
+  // Vacation
+  vacation_pick: "🌴 На сколько дней поставить паузу?",
+  vacation_set: (date: string) =>
+    `Ок 🙂 Поставила паузу до ${date}. Напоминалки приходить не будут.`,
+  vacation_off: "Пауза снята ✅",
+  vacation_returned: "Похоже, ты вернулся 🙂 Пауза снята.",
+
+  // Leaderboard
+  leaderboard_pick: "🏆 Какой лидерборд показать?",
+  leaderboard_week_delta_title: "🏆 Лидерборд недели (по изменению)",
+  leaderboard_checkins_title: "🏆 Лидерборд регулярности (7 дней)",
+  leaderboard_line_delta: (pos: number, name: string, delta: string, checkins: number) =>
+    `${pos}) ${name}: ${delta} (${checkins}/7)`,
+  leaderboard_line_checkins: (pos: number, name: string, checkins: number, streak: number) =>
+    `${pos}) ${name}: ${checkins}/7 • без пропусков ${streak}`,
+  leaderboard_no_data: "Нет данных за эту неделю.",
 
   // Help
   help_message: `ℹ️ **Как пользоваться ботом:**

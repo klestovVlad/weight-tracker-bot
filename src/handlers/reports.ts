@@ -13,6 +13,7 @@ import {
   countUserEntriesInRange,
   getWeightOnOrBeforeDate,
 } from "../db/weights";
+import { getUsersOnVacation } from "../db/user-settings";
 import { getAllUsers } from "../db/users";
 
 interface UserDelta {
@@ -80,8 +81,9 @@ export async function generateDailyReport(env: Env): Promise<void> {
 
   const allUsers = await getAllUsers(env.DB);
   const submittedIds = new Set(usersToday.map(u => u.user_id));
+  const vacationUserIds = new Set(await getUsersOnVacation(env.DB, today));
   const missing = allUsers
-    .filter(u => !submittedIds.has(u.user_id))
+    .filter(u => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id))
     .map(u => u.display_name);
 
   const payload: ReportPayload = {
@@ -162,8 +164,9 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
 
   const allUsers = await getAllUsers(env.DB);
   const submittedIds = new Set(usersThisWeek.map(u => u.user_id));
+  const vacationUserIds = new Set(await getUsersOnVacation(env.DB, today));
   const missing = allUsers
-    .filter(u => !submittedIds.has(u.user_id))
+    .filter(u => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id))
     .map(u => u.display_name);
 
   const payload: ReportPayload = {

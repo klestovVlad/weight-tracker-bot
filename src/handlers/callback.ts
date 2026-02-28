@@ -1,10 +1,13 @@
-import { Env, TelegramCallbackQuery } from "../types";
+import { Env, TelegramCallbackQuery, InlineKeyboardMarkup } from "../types";
 import { sendMessage, answerCallbackQuery } from "../telegram/api";
 import { isOwner, createMainMenu } from "../utils";
 import { RU, formatDeltaRu } from "../i18n";
 import { getLastWeightByUpdatedAt, getPreviousWeight, getWeightHistory } from "../db/weights";
 import { upsertPendingAction } from "../db/pending-actions";
 import { getSetting, setSetting } from "../db/settings";
+import { handleChart, getSmartDefaultPeriod } from "./chart";
+import { handleSetVacation, handleClearVacation } from "./vacation";
+import { handleLeaderboardWeekDelta, handleLeaderboardCheckins } from "./leaderboard";
 
 export async function handleCallbackQuery(
   env: Env,
@@ -59,6 +62,43 @@ export async function handleCallbackQuery(
 
     case "menu_help":
       return handleHelp(env, message.chat.id);
+
+    case "menu_chart":
+      return handleChartMenu(env, message.chat.id, userId, isPrivate);
+
+    case "menu_chart_7":
+      return handleChartPeriod(env, message.chat.id, userId, isPrivate, 7);
+    case "menu_chart_30":
+      return handleChartPeriod(env, message.chat.id, userId, isPrivate, 30);
+    case "menu_chart_90":
+      return handleChartPeriod(env, message.chat.id, userId, isPrivate, 90);
+    case "menu_chart_180":
+      return handleChartPeriod(env, message.chat.id, userId, isPrivate, 180);
+    case "menu_chart_all":
+      return handleChartPeriod(env, message.chat.id, userId, isPrivate, "all");
+
+    case "menu_vacation":
+      return handleVacationMenu(env, message.chat.id, isPrivate);
+
+    case "vacation_7":
+      return handleVacationSet(env, message.chat.id, userId, isPrivate, 7);
+    case "vacation_14":
+      return handleVacationSet(env, message.chat.id, userId, isPrivate, 14);
+    case "vacation_30":
+      return handleVacationSet(env, message.chat.id, userId, isPrivate, 30);
+    case "vacation_off":
+      return handleVacationOff(env, message.chat.id, userId, isPrivate);
+
+    case "menu_leaderboard":
+      return handleLeaderboardMenu(env, message.chat.id, isPrivate);
+
+    case "leaderboard_week_delta":
+      return handleLeaderboardWeekDeltaCallback(env, message.chat.id, isPrivate);
+    case "leaderboard_checkins":
+      return handleLeaderboardCheckinsCallback(env, message.chat.id, isPrivate);
+
+    case "menu_back_main":
+      return handleShowMenu(env, message.chat.id, isOwnerUser, !isPrivate);
 
     default:
       return new Response("OK");
@@ -331,4 +371,162 @@ async function handleHelp(
   chatId: number
 ): Promise<Response> {
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.help_message);
+}
+
+function createChartPicker(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: "7 дней", callback_data: "menu_chart_7" },
+        { text: "30 дней", callback_data: "menu_chart_30" }
+      ],
+      [
+        { text: "90 дней", callback_data: "menu_chart_90" },
+        { text: "180 дней", callback_data: "menu_chart_180" }
+      ],
+      [
+        { text: "С начала", callback_data: "menu_chart_all" },
+        { text: RU.btn_back, callback_data: "menu_back_main" }
+      ]
+    ]
+  };
+}
+
+async function handleChartMenu(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  const records = await getWeightHistory(env.DB, userId, 1000);
+  const smartPeriod = getSmartDefaultPeriod(records.length);
+  
+  await handleChart(env, chatId, userId, smartPeriod);
+  
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.chart_pick_period, {
+    reply_markup: createChartPicker()
+  });
+}
+
+async function handleChartPeriod(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isPrivate: boolean,
+  period: number | "all"
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return handleChart(env, chatId, userId, period);
+}
+
+function createVacationPicker(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: "7 дней", callback_data: "vacation_7" },
+        { text: "14 дней", callback_data: "vacation_14" }
+      ],
+      [
+        { text: "30 дней", callback_data: "vacation_30" },
+        { text: "Снять паузу", callback_data: "vacation_off" }
+      ],
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }]
+    ]
+  };
+}
+
+async function handleVacationMenu(
+  env: Env,
+  chatId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.vacation_pick, {
+    reply_markup: createVacationPicker()
+  });
+}
+
+async function handleVacationSet(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isPrivate: boolean,
+  days: number
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return handleSetVacation(env, chatId, userId, days);
+}
+
+async function handleVacationOff(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return handleClearVacation(env, chatId, userId);
+}
+
+function createLeaderboardPicker(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: "За неделю (Δ)", callback_data: "leaderboard_week_delta" }],
+      [{ text: "Регулярность (7 дней)", callback_data: "leaderboard_checkins" }],
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }]
+    ]
+  };
+}
+
+async function handleLeaderboardMenu(
+  env: Env,
+  chatId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.leaderboard_pick, {
+    reply_markup: createLeaderboardPicker()
+  });
+}
+
+async function handleLeaderboardWeekDeltaCallback(
+  env: Env,
+  chatId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return handleLeaderboardWeekDelta(env, chatId);
+}
+
+async function handleLeaderboardCheckinsCallback(
+  env: Env,
+  chatId: number,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return handleLeaderboardCheckins(env, chatId);
 }

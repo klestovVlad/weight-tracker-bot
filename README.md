@@ -114,6 +114,33 @@ Press **📈 7 дней** or **📅 30 дней** to see your progress:
 
 **Privacy:** Personal stats including absolute weights are visible only in private chat. Group never sees actual weight values.
 
+### PNG Chart (Private Only)
+
+Press **📊 График** to see a visual chart of your weight progress.
+
+- Choose period: 7, 30, 90, 180 days or all data
+- Uses [QuickChart.io](https://quickchart.io) to generate PNG images
+- Shows period delta, min and max values
+- Chart is sent only to you in private chat
+
+### Vacation Pause
+
+Press **🌴 Отпуск** to pause reminders:
+
+- Choose 7, 14, or 30 days
+- No reminders will be sent during pause
+- You won't appear in "missing" section of reports
+- If you submit weight while on pause, it automatically clears
+
+### Leaderboard (Private Only)
+
+Press **🏆 Лидерборд** to see rankings:
+
+- **Week Delta** — sorted by weight change (most lost first)
+- **Regularity** — sorted by check-ins and streak
+
+**Privacy:** Leaderboard shows only deltas and check-in counts, never absolute weights.
+
 ### Commands
 
 | Command | Description |

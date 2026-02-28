@@ -3,6 +3,7 @@ import { sendMessage } from "../telegram/api";
 import { getTodayDate } from "../utils";
 import { getAllUsers } from "../db/users";
 import { getWeightForDate } from "../db/weights";
+import { isOnVacation } from "../db/user-settings";
 import { logError } from "../helpers/logging";
 
 const REMINDER_TEXT = "⏰ Напоминалка: отметь вес 🙂\nМожно просто числом, например: 87.4";
@@ -46,6 +47,12 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
 
   for (const user of users) {
     try {
+      const onVacation = await isOnVacation(env.DB, user.user_id, today);
+      if (onVacation) {
+        stats.skipped++;
+        continue;
+      }
+
       const weightToday = await getWeightForDate(env.DB, user.user_id, today);
       if (weightToday) {
         stats.skipped++;

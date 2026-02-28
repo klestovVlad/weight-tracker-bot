@@ -11,6 +11,7 @@ import {
   updateWeightEntry
 } from "../db/weights";
 import { clearPendingAction } from "../db/pending-actions";
+import { isOnVacation, clearVacation } from "../db/user-settings";
 
 export async function handleWeightInput(
   env: Env,
@@ -27,6 +28,13 @@ export async function handleWeightInput(
   }
 
   const today = getTodayDate();
+  
+  const wasOnVacation = await isOnVacation(env.DB, userId, today);
+  if (wasOnVacation) {
+    await clearVacation(env.DB, userId);
+    await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.vacation_returned);
+  }
+  
   const previousRecord = await getPreviousWeight(env.DB, userId, today);
 
   await saveWeight(env.DB, userId, today, weightKg);

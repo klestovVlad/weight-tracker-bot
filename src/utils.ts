@@ -87,9 +87,14 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_history_30, callback_data: "menu_history_30" }
     ]);
     keyboard.push([
-      { text: RU.btn_edit_last, callback_data: "menu_edit_last" },
-      { text: RU.btn_help, callback_data: "menu_help" }
+      { text: RU.btn_chart, callback_data: "menu_chart" },
+      { text: RU.btn_leaderboard, callback_data: "menu_leaderboard" }
     ]);
+    keyboard.push([
+      { text: RU.btn_edit_last, callback_data: "menu_edit_last" },
+      { text: RU.btn_vacation, callback_data: "menu_vacation" }
+    ]);
+    keyboard.push([{ text: RU.btn_help, callback_data: "menu_help" }]);
   }
 
   if (isOwnerUser) {

@@ -94,3 +94,27 @@ export async function answerCallbackQuery(
     body: JSON.stringify(body),
   });
 }
+
+export async function sendPhoto(
+  token: string,
+  chatId: number | string,
+  photoUrl: string,
+  caption?: string
+): Promise<Response> {
+  const url = `https://api.telegram.org/bot${token}/sendPhoto`;
+
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    photo: photoUrl,
+  };
+
+  if (caption) {
+    body.caption = caption;
+  }
+
+  return fetchWithRetry(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
