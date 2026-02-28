@@ -86,7 +86,10 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_history_7, callback_data: "menu_history_7" },
       { text: RU.btn_history_30, callback_data: "menu_history_30" }
     ]);
-    keyboard.push([{ text: RU.btn_edit_last, callback_data: "menu_edit_last" }]);
+    keyboard.push([
+      { text: RU.btn_edit_last, callback_data: "menu_edit_last" },
+      { text: RU.btn_help, callback_data: "menu_help" }
+    ]);
   }
 
   if (isOwnerUser) {

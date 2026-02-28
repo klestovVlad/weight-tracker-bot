@@ -110,7 +110,41 @@ Send the new weight and the entry will be updated.
 | `/history 30` | Show last 30 entries |
 | `/cancel` | Cancel pending edit action |
 | `/setgroup` | Configure group for delta posting (owner only) |
+| `/setbotusername <name>` | Set bot username for deep links (owner only) |
 | `/status` | Show bot configuration (owner only) |
+
+## Onboarding
+
+### Настройка бота для группы
+
+1. Добавьте бота в группу
+2. Установите username бота: `/setbotusername weight_tracker_bot` (замените на ваш)
+3. Привяжите группу: `/setgroup`
+4. Бот отправит сообщение с инструкцией и ссылкой
+
+### Сообщение для закрепления в группе
+
+После настройки можно закрепить это сообщение:
+
+```
+🏋️ Отслеживание веса
+
+Чтобы участвовать:
+1. Откройте бота и нажмите Start
+2. Отправьте свой вес в личку боту (например: 87.4)
+
+🔒 Ваш точный вес видите только вы
+📊 В группу приходят только изменения (+0.5 кг)
+⏰ Напоминалки приходят в 11:00 если не внесли вес
+```
+
+### Telegram ограничение
+
+Бот может отправлять личные сообщения только пользователям, которые:
+- Сами написали боту хотя бы раз
+- Нажали кнопку Start
+
+Поэтому важно чтобы каждый участник сначала запустил бота в личке.
 
 ## Group Posting
 

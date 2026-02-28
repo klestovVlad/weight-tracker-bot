@@ -57,6 +57,9 @@ export async function handleCallbackQuery(
     case "send_report":
       return handleSendReport(env, message.chat.id, isOwnerUser);
 
+    case "menu_help":
+      return handleHelp(env, message.chat.id);
+
     default:
       return new Response("OK");
   }
@@ -290,4 +293,11 @@ async function handleSendReport(
   await generateDailyReport(env);
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "✅ Отчёт отправлен!");
+}
+
+async function handleHelp(
+  env: Env,
+  chatId: number
+): Promise<Response> {
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.help_message);
 }

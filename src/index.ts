@@ -5,7 +5,7 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
@@ -84,6 +84,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleStart(env, message);
     case "/setgroup":
       return handleSetGroup(env, message);
+    case "/setbotusername":
+      return handleSetBotUsername(env, message, args);
     case "/status":
       return handleStatus(env, message);
     case "/me":

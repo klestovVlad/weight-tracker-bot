@@ -14,8 +14,21 @@ export async function handleStart(
   const isOwnerUser = userId ? isOwner(userId, env.OWNER_USER_ID) : false;
   const isGroup = message.chat.type !== "private";
 
+  if (isGroup) {
+    const botUsername = await getSetting(env.DB, "bot_username");
+    if (botUsername) {
+      const link = `https://t.me/${botUsername}?start=from_group`;
+      return sendMessage(
+        env.TELEGRAM_BOT_TOKEN,
+        message.chat.id,
+        `${RU.welcome_group}\n\n${link}`
+      );
+    }
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.welcome_group);
+  }
+
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.welcome, {
-    reply_markup: createMainMenu(isOwnerUser, isGroup)
+    reply_markup: createMainMenu(isOwnerUser, false)
   });
 }
 
@@ -35,7 +48,36 @@ export async function handleSetGroup(
 
   await setSetting(env.DB, "public_chat_id", message.chat.id.toString());
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.group_configured);
+  const botUsername = await getSetting(env.DB, "bot_username");
+  
+  if (botUsername) {
+    const link = `https://t.me/${botUsername}?start=from_group`;
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.group_configured_with_link(link));
+  }
+  
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.group_configured_no_link);
+}
+
+export async function handleSetBotUsername(
+  env: Env,
+  message: TelegramMessage,
+  args: string
+): Promise<Response> {
+  const userId = message.from?.id;
+
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const username = args.trim().replace(/^@/, "");
+  
+  if (!username) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.bot_username_usage);
+  }
+
+  await setSetting(env.DB, "bot_username", username);
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.bot_username_set(username));
 }
 
 export async function handleStatus(
@@ -353,6 +395,7 @@ export async function handleDebugHelp(
 /debug_openai — тест OpenAI с фейк-данными
 /debug_run_reminders — отправить напоминалки
 /setgroup — привязать группу (в группе)
+/setbotusername <name> — сохранить username бота
 /status — статус бота`;
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, helpText);
