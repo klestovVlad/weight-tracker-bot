@@ -25,6 +25,40 @@ export function getDateWithOffset(offsetDays: number): string {
   return formatter.format(now);
 }
 
+/** Previous calendar day (YYYY-MM-DD). Used for streak in Asia/Nicosia context. */
+export function getPreviousDay(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00.000Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export const STREAK_LEVELS: Array<{ days: number; icon: string }> = [
+  { days: 3, icon: "🔹" },
+  { days: 7, icon: "🔸" },
+  { days: 14, icon: "⭐" },
+  { days: 30, icon: "🔥" },
+  { days: 60, icon: "💎" },
+  { days: 90, icon: "👑" },
+];
+
+/** Highest level icon for streak; empty string if streak < 3. */
+export function getStreakIcon(streak: number): string {
+  if (streak < 3) return "";
+  let icon = "";
+  for (const { days, icon: i } of STREAK_LEVELS) {
+    if (streak >= days) icon = i;
+  }
+  return icon;
+}
+
+/** Next level threshold (days) for streak; null if already at max (90+). */
+export function getNextStreakLevel(streak: number): number | null {
+  for (const { days } of STREAK_LEVELS) {
+    if (streak < days) return days;
+  }
+  return null;
+}
+
 export function formatDelta(delta: number): string {
   const sign = delta >= 0 ? "+" : "";
   return `${sign}${delta.toFixed(1)} kg`;
@@ -98,6 +132,7 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_vacation, callback_data: "menu_vacation" },
       { text: RU.btn_help, callback_data: "menu_help" }
     ]);
+    keyboard.push([{ text: RU.btn_achievements, callback_data: "menu_my_achievements" }]);
   }
 
   if (isOwnerUser) {

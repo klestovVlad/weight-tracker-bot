@@ -12,6 +12,7 @@ Telegram bot for tracking weight with privacy-first design. Built on Cloudflare 
 - **Scheduled reports** — daily (Mon-Sat) and weekly (Sunday) group reports at 19:00 Asia/Nicosia
 - **AI-powered reports** — OpenAI generates friendly intro/outro for group reports (optional)
 - **Daily reminders** — private reminder at 11:00 Asia/Nicosia for users who haven't logged weight
+- **Streak achievements** — levels (🔹→👑), new-achievement and broken-streak announcements in daily report, weekly hero, personal achievements screen (🏅 Мои ачивки)
 
 ## Privacy
 
@@ -140,6 +141,42 @@ Press **🏆 Лидерборд** to see rankings:
 - **Regularity** — sorted by check-ins and streak
 
 **Privacy:** Leaderboard shows only deltas and check-in counts, never absolute weights.
+
+### Achievements
+
+**Streak levels** (consecutive days with a weight entry, timezone Asia/Nicosia):
+
+| Days | Icon |
+|------|------|
+| 3    | 🔹   |
+| 7    | 🔸   |
+| 14   | ⭐   |
+| 30   | 🔥   |
+| 60   | 💎   |
+| 90   | 👑   |
+
+- Your **status icon** is the highest level you’ve reached (e.g. 12 days → ⭐). Shown next to your name in group reports and leaderboards. No icon if streak &lt; 3.
+- **Vacation:** Users on vacation are not counted as “missing” and do not break their streak for announcements.
+
+**Daily report (group):**
+
+- **🏅 Новые ачивки сегодня** — users who crossed a level today (e.g. first time 7 days).
+- **💔 Прервали серию** — users who did not check in today and had a streak of 3+ days (streak is considered broken).
+
+**Weekly report (group):**
+
+- **🏆 Герой недели** — user(s) with the best (most negative) week delta. Omitted if there is no valid week data.
+
+**Personal achievements (private):**
+
+- Press **🏅 Мои ачивки** to open your achievements screen:
+  - Current streak and level icon
+  - Days left until the next level (with optional progress bar)
+  - History of levels (reached / in progress)
+- If streak &lt; 3: “До первой ачивки (🔹 3 дня) осталось: X дней”.
+- If streak ≥ 90: “Ты легенда 👑 Стрик 90+ дней!”.
+
+**Privacy:** Achievements and streak text never include absolute weight values.
 
 ### Target Weight Goal (Private Only)
 

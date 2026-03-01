@@ -21,6 +21,7 @@ export const RU = {
   btn_chart: "📊 График",
   btn_vacation: "🌴 Отпуск",
   btn_leaderboard: "🏆 Лидерборд",
+  btn_achievements: "🏅 Мои ачивки",
   btn_back: "⬅️ Назад",
   btn_status: "⚙️ Статус",
   btn_setgroup: "👥 Привязать группу",
@@ -186,6 +187,15 @@ ${link}`,
   report_daily_no_prev: (name: string, totalDelta: string) =>
     `• <b>${name}</b>: сегодня — | всего ${totalDelta}`,
   report_no_entries_today: "📭 Сегодня никто не отметился.",
+  report_achievements_header: "🏅 Новые ачивки сегодня:",
+  report_achievement_line: (name: string, icon: string, days: number) =>
+    `• <b>${name}</b>: ${icon} ${days} дней подряд`,
+  report_broken_header: "💔 Прервали серию:",
+  report_broken_line: (name: string, streak: number) =>
+    `• <b>${name}</b> прервал серию из ${streak} дней`,
+  report_heroes_header: "🏆 Герой недели:",
+  report_hero_line: (name: string, weekDelta: string, checkins: number) =>
+    `• <b>${name}</b> — ${weekDelta} (${checkins}/7)`,
 
   // Weekly report
   report_weekly_header: "📈 Итоги недели:\n",
@@ -229,6 +239,19 @@ ${link}`,
   report_cooldown: "Подожди минутку перед следующим отчётом.",
   report_sent: "Отчёт отправлен в группу ✅",
   report_usage: "Использование: /report daily | weekly | monthly",
+
+  // Achievements (personal screen)
+  achievements_title: "🏅 Твои достижения",
+  achievements_streak: (days: number, icon: string) => `Текущий стрик: ${days} дней ${icon}`,
+  achievements_next: (icon: string, days: number, left: number) =>
+    `До следующего уровня (${icon} ${days} дней) осталось: ${left} дней`,
+  achievements_level_done: (icon: string, days: number) => `${icon} ${days} дней — достигнуто`,
+  achievements_level_in_progress: (icon: string, days: number) =>
+    `${icon} ${days} дней — в процессе`,
+  achievements_start: (left: number) =>
+    `Начало положено 🙂 До первой ачивки (🔹 3 дня) осталось: ${left} дней`,
+  achievements_legend: "Ты легенда 👑 Стрик 90+ дней!",
+  achievements_history_title: "История уровней:",
 
   // Common
   no_data: "—",

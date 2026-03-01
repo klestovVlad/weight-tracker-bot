@@ -2,7 +2,8 @@ import { Env } from "../types";
 import { sendMessage } from "../telegram/api";
 import { RU, formatDeltaRu } from "../i18n";
 import { getAllUsers } from "../db/users";
-import { getDateWithOffset, getTodayDate } from "../utils";
+import { getDateWithOffset, getTodayDate, getStreakIcon } from "../utils";
+import { getUserStreak } from "../db/weights";
 
 interface LeaderboardEntry {
   name: string;
@@ -38,35 +39,8 @@ async function getWeekData(
   };
 }
 
-async function getStreak(db: D1Database, userId: number): Promise<number> {
-  const result = await db
-    .prepare(
-      `SELECT date FROM weights WHERE user_id = ? ORDER BY date DESC LIMIT 100`
-    )
-    .bind(userId)
-    .all<{ date: string }>();
-
-  const records = result.results ?? [];
-  if (records.length === 0) return 0;
-
-  let streak = 1;
-  let prevDate = new Date(records[0].date);
-
-  for (let i = 1; i < records.length; i++) {
-    const currentDate = new Date(records[i].date);
-    const diffDays = Math.round(
-      (prevDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays === 1) {
-      streak++;
-      prevDate = currentDate;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
+function nameWithStreakIcon(name: string, icon: string): string {
+  return icon ? `${name} ${icon}` : name;
 }
 
 export async function handleLeaderboardWeekDelta(
@@ -81,7 +55,8 @@ export async function handleLeaderboardWeekDelta(
 
   for (const user of users) {
     const data = await getWeekData(env.DB, user.user_id, startDate, today);
-    const streak = await getStreak(env.DB, user.user_id);
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    const streak = streakInfo?.length ?? 0;
 
     let weekDelta: number | null = null;
     if (data.firstWeight !== null && data.lastWeight !== null && data.checkins >= 2) {
@@ -110,10 +85,13 @@ export async function handleLeaderboardWeekDelta(
   }
 
   const lines = [RU.leaderboard_week_delta_title, ""];
-  top10.forEach((entry, idx) => {
+  for (let idx = 0; idx < top10.length; idx++) {
+    const entry = top10[idx];
     const deltaStr = entry.weekDelta !== null ? formatDeltaRu(entry.weekDelta) : "—";
-    lines.push(RU.leaderboard_line_delta(idx + 1, entry.name, deltaStr, entry.checkins));
-  });
+    const icon = getStreakIcon(entry.streak);
+    const nameWithIcon = nameWithStreakIcon(entry.name, icon);
+    lines.push(RU.leaderboard_line_delta(idx + 1, nameWithIcon, deltaStr, entry.checkins));
+  }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, lines.join("\n"));
 }
@@ -130,7 +108,8 @@ export async function handleLeaderboardCheckins(
 
   for (const user of users) {
     const data = await getWeekData(env.DB, user.user_id, startDate, today);
-    const streak = await getStreak(env.DB, user.user_id);
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    const streak = streakInfo?.length ?? 0;
 
     entries.push({
       name: user.display_name,
@@ -153,7 +132,9 @@ export async function handleLeaderboardCheckins(
 
   const lines = [RU.leaderboard_checkins_title, ""];
   top10.forEach((entry, idx) => {
-    lines.push(RU.leaderboard_line_checkins(idx + 1, entry.name, entry.checkins, entry.streak));
+    const icon = getStreakIcon(entry.streak);
+    const nameWithIcon = nameWithStreakIcon(entry.name, icon);
+    lines.push(RU.leaderboard_line_checkins(idx + 1, nameWithIcon, entry.checkins, entry.streak));
   });
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, lines.join("\n"));

@@ -9,6 +9,7 @@ import { handleChart, getSmartDefaultPeriod } from "./chart";
 import { handleSetVacation, handleClearVacation } from "./vacation";
 import { handleLeaderboardWeekDelta, handleLeaderboardCheckins } from "./leaderboard";
 import { handleGoalMenu, handleGoalSetStart, handleGoalDelete } from "./goal";
+import { handleMyAchievements } from "./achievements";
 
 export async function handleCallbackQuery(
   env: Env,
@@ -97,6 +98,9 @@ export async function handleCallbackQuery(
       return handleLeaderboardWeekDeltaCallback(env, message.chat.id, isPrivate);
     case "leaderboard_checkins":
       return handleLeaderboardCheckinsCallback(env, message.chat.id, isPrivate);
+
+    case "menu_my_achievements":
+      return handleMyAchievements(env, message.chat.id, userId);
 
     case "menu_goal":
       return handleGoalMenuCallback(env, message.chat.id, userId, message.message_id, callbackQuery.id, isPrivate);

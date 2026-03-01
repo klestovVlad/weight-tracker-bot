@@ -1,6 +1,6 @@
 import { Env, ReportPayload } from "../types";
 import { sendMessage } from "../telegram/api";
-import { getTodayDate, getDateWithOffset } from "../utils";
+import { getTodayDate, getDateWithOffset, getStreakIcon, STREAK_LEVELS, getPreviousDay } from "../utils";
 import { RU, formatDeltaRu } from "../i18n";
 import { getSetting } from "../db/settings";
 import { humanizeReport } from "../openai";
@@ -13,6 +13,7 @@ import {
   countUserEntriesInRange,
   getWeightOnOrBeforeDate,
   getLastWeight,
+  getUserStreak,
 } from "../db/weights";
 import { getUsersOnVacation } from "../db/user-settings";
 import { getAllUsers } from "../db/users";
@@ -31,6 +32,10 @@ interface UserDelta {
 function formatDateRu(dateStr: string): string {
   const [year, month, day] = dateStr.split("-");
   return `${day}.${month}.${year}`;
+}
+
+function nameWithStreakIcon(name: string, icon: string): string {
+  return icon ? `${name} ${icon}` : name;
 }
 
 async function getGoalSnippetForUser(
@@ -77,9 +82,29 @@ export async function generateDailyReport(env: Env): Promise<void> {
   let firstEntryCount = 0;
   const firstEntryNames: string[] = [];
 
+  const yesterday = getPreviousDay(today);
+  const achievementLines: Array<{ name: string; icon: string; days: number }> = [];
+
   for (const user of usersToday) {
     const todayRecord = await getWeightForDate(env.DB, user.user_id, today);
     if (!todayRecord) continue;
+
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    const streakToday = streakInfo?.length ?? 0;
+    const streakYesterday = streakToday >= 1 ? streakToday - 1 : 0;
+    const levelCrossed = STREAK_LEVELS.find(
+      (l) => streakToday >= l.days && streakYesterday < l.days
+    );
+    if (levelCrossed) {
+      achievementLines.push({
+        name: user.display_name,
+        icon: levelCrossed.icon,
+        days: levelCrossed.days,
+      });
+    }
+
+    const streakIcon = getStreakIcon(streakToday);
+    const nameWithIcon = nameWithStreakIcon(user.display_name, streakIcon);
 
     const previousRecord = await getPreviousWeight(env.DB, user.user_id, today);
     const overallStats = await getOverallFirstAndLast(env.DB, user.user_id);
@@ -97,17 +122,17 @@ export async function generateDailyReport(env: Env): Promise<void> {
     let dayDelta: number | null = null;
     if (previousRecord) {
       dayDelta = todayRecord.weight_kg - previousRecord.weight_kg;
-      lines.push(RU.report_daily_line(user.display_name, formatDeltaRu(dayDelta), totalDeltaStr) + goalSnippet);
+      lines.push(RU.report_daily_line(nameWithIcon, formatDeltaRu(dayDelta), totalDeltaStr) + goalSnippet);
       sumDayDelta += dayDelta;
       countWithDelta++;
       if (dayDelta > 0) hasRegressions = true;
     } else {
       if (overallStats && overallStats.totalEntries === 1) {
-        lines.push(RU.report_daily_first(user.display_name) + goalSnippet);
+        lines.push(RU.report_daily_first(nameWithIcon) + goalSnippet);
         firstEntryCount++;
         firstEntryNames.push(user.display_name);
       } else {
-        lines.push(RU.report_daily_no_prev(user.display_name, totalDeltaStr) + goalSnippet);
+        lines.push(RU.report_daily_no_prev(nameWithIcon, totalDeltaStr) + goalSnippet);
       }
     }
 
@@ -131,11 +156,22 @@ export async function generateDailyReport(env: Env): Promise<void> {
   }
 
   const allUsers = await getAllUsers(env.DB);
-  const submittedIds = new Set(usersToday.map(u => u.user_id));
+  const submittedIds = new Set(usersToday.map((u) => u.user_id));
   const vacationUserIds = new Set(await getUsersOnVacation(env.DB, today));
-  const missing = allUsers
-    .filter(u => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id))
-    .map(u => u.display_name);
+  const missingUsers = allUsers.filter(
+    (u) => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id)
+  );
+  const missing = missingUsers.map((u) => u.display_name);
+
+  const brokenLines: Array<{ name: string; streak: number }> = [];
+  for (const user of missingUsers) {
+    const lastOnYesterday = await getWeightOnOrBeforeDate(env.DB, user.user_id, yesterday);
+    if (!lastOnYesterday || lastOnYesterday.date !== yesterday) continue;
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    if (streakInfo && streakInfo.length >= 3) {
+      brokenLines.push({ name: user.display_name, streak: streakInfo.length });
+    }
+  }
 
   const payload: ReportPayload = {
     date: formatDateRu(today),
@@ -159,6 +195,20 @@ export async function generateDailyReport(env: Env): Promise<void> {
     report += intro + "\n\n";
   }
   report += RU.report_daily_header + "\n" + lines.join("\n");
+
+  if (achievementLines.length > 0) {
+    report += "\n\n" + RU.report_achievements_header + "\n";
+    report += achievementLines
+      .map((a) => RU.report_achievement_line(a.name, a.icon, a.days))
+      .join("\n");
+  }
+  if (brokenLines.length > 0) {
+    report += "\n\n" + RU.report_broken_header + "\n";
+    report += brokenLines
+      .map((b) => RU.report_broken_line(b.name, b.streak))
+      .join("\n");
+  }
+
   if (outro) {
     report += "\n\n" + outro;
   }
@@ -185,12 +235,17 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
   const lines: string[] = [];
   const submitted: UserDelta[] = [];
   const goalsInfo: Array<{ name: string; remaining: number; percent: number; reached: boolean }> = [];
+  const weekDeltaEntries: Array<{ name: string; userId: number; weekDelta: number; checkins: number }> = [];
   let sumWeekDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
 
   for (const user of usersThisWeek) {
     const checkins = await countUserEntriesInRange(env.DB, user.user_id, weekAgo, today);
+
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    const streakIcon = getStreakIcon(streakInfo?.length ?? 0);
+    const nameWithIcon = nameWithStreakIcon(user.display_name, streakIcon);
 
     const latestThisWeek = await getWeightOnOrBeforeDate(env.DB, user.user_id, today);
     const beforeWeek = getDateWithOffset(-7);
@@ -211,12 +266,13 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
     let weekDelta: number | null = null;
     if (latestThisWeek && weightBeforeWeek && latestThisWeek.date !== weightBeforeWeek.date) {
       weekDelta = latestThisWeek.weight_kg - weightBeforeWeek.weight_kg;
-      lines.push(RU.report_weekly_line(user.display_name, formatDeltaRu(weekDelta), totalDeltaStr, checkins) + goalSnippet);
+      weekDeltaEntries.push({ name: user.display_name, userId: user.user_id, weekDelta, checkins });
+      lines.push(RU.report_weekly_line(nameWithIcon, formatDeltaRu(weekDelta), totalDeltaStr, checkins) + goalSnippet);
       sumWeekDelta += weekDelta;
       countWithDelta++;
       if (weekDelta > 0) hasRegressions = true;
     } else {
-      lines.push(RU.report_weekly_no_week(user.display_name, totalDeltaStr, checkins) + goalSnippet);
+      lines.push(RU.report_weekly_no_week(nameWithIcon, totalDeltaStr, checkins) + goalSnippet);
     }
 
     submitted.push({
@@ -235,6 +291,22 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
         percent: goalInfo.percent,
         reached: goalInfo.reached,
       });
+    }
+  }
+
+  let heroesSection = "";
+  if (weekDeltaEntries.length > 0) {
+    const minDelta = Math.min(...weekDeltaEntries.map((e) => e.weekDelta));
+    const heroes = weekDeltaEntries.filter((e) => e.weekDelta === minDelta);
+    if (heroes.length > 0 && minDelta <= 0) {
+      const heroLines: string[] = [];
+      for (const h of heroes) {
+        const streakInfo = await getUserStreak(env.DB, h.userId);
+        const icon = getStreakIcon(streakInfo?.length ?? 0);
+        const nameWithIcon = nameWithStreakIcon(h.name, icon);
+        heroLines.push(RU.report_hero_line(nameWithIcon, formatDeltaRu(h.weekDelta), h.checkins));
+      }
+      heroesSection = "\n\n" + RU.report_heroes_header + "\n" + heroLines.join("\n");
     }
   }
 
@@ -264,6 +336,7 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
 
   let report = intro ? intro + "\n\n" : "";
   report += lines.join("\n");
+  report += heroesSection;
   if (outro) {
     report += "\n\n" + outro;
   }
@@ -300,6 +373,10 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
   for (const user of usersThisMonth) {
     const checkins = await countUserEntriesInRange(env.DB, user.user_id, firstDayOfMonth, lastDayOfMonth);
 
+    const streakInfo = await getUserStreak(env.DB, user.user_id);
+    const streakIcon = getStreakIcon(streakInfo?.length ?? 0);
+    const nameWithIcon = nameWithStreakIcon(user.display_name, streakIcon);
+
     const firstInMonth = await getWeightForDate(env.DB, user.user_id, firstDayOfMonth)
       || await getWeightOnOrBeforeDate(env.DB, user.user_id, lastDayOfMonth);
     const lastInMonth = await getWeightOnOrBeforeDate(env.DB, user.user_id, lastDayOfMonth);
@@ -319,12 +396,12 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
     let monthDelta: number | null = null;
     if (firstInMonth && lastInMonth && firstInMonth.date !== lastInMonth.date) {
       monthDelta = lastInMonth.weight_kg - firstInMonth.weight_kg;
-      lines.push(RU.report_monthly_line(user.display_name, formatDeltaRu(monthDelta), checkins, totalDeltaStr) + goalSnippet);
+      lines.push(RU.report_monthly_line(nameWithIcon, formatDeltaRu(monthDelta), checkins, totalDeltaStr) + goalSnippet);
       sumMonthDelta += monthDelta;
       countWithDelta++;
       if (monthDelta > 0) hasRegressions = true;
     } else {
-      lines.push(RU.report_monthly_no_delta(user.display_name, checkins, totalDeltaStr) + goalSnippet);
+      lines.push(RU.report_monthly_no_delta(nameWithIcon, checkins, totalDeltaStr) + goalSnippet);
     }
 
     submitted.push({

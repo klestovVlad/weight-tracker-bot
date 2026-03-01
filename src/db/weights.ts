@@ -1,4 +1,5 @@
 import { WeightRecord } from "../types";
+import { getPreviousDay } from "../utils";
 
 export async function saveWeight(
   db: D1Database,
@@ -245,4 +246,39 @@ export async function deleteWeight(
     .run();
 
   return (result.meta?.changes ?? 0) > 0;
+}
+
+export interface UserStreak {
+  length: number;
+  lastDate: string;
+}
+
+/** Consecutive days with weight entries ending at user's last entry date (day-to-day in calendar). */
+export async function getUserStreak(
+  db: D1Database,
+  userId: number
+): Promise<UserStreak | null> {
+  const result = await db
+    .prepare(
+      `SELECT date FROM weights WHERE user_id = ? ORDER BY date DESC LIMIT 200`
+    )
+    .bind(userId)
+    .all<{ date: string }>();
+
+  const dates = result.results ?? [];
+  if (dates.length === 0) return null;
+
+  const dateSet = new Set(dates.map((r) => r.date));
+  const lastDate = dates[0].date;
+  let length = 1;
+  let current = lastDate;
+
+  for (;;) {
+    const prev = getPreviousDay(current);
+    if (!dateSet.has(prev)) break;
+    length++;
+    current = prev;
+  }
+
+  return { length, lastDate };
 }
