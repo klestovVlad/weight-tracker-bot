@@ -419,6 +419,7 @@ export async function handleDebugHelp(
   const helpText = `🔧 **Админские команды:**
 
 /debug — эта справка
+/debug_users — кто отметился, цели
 /debug_addday <смещение> <вес> — добавить запись
   • /debug_addday -1 85.5 — вчера
   • /debug_addday 0 null — удалить сегодня
@@ -427,6 +428,7 @@ export async function handleDebugHelp(
 /debug_openai — тест OpenAI с фейк-данными
 /debug_run_reminders — отправить напоминалки
 /debug_reset_all — удалить ВСЕ записи веса
+/report daily|weekly|monthly — отправить отчёт
 /setgroup — привязать группу (в группе)
 /setbotusername <name> — сохранить username бота
 /status — статус бота`;
@@ -510,4 +512,68 @@ export async function handleReport(
     reportCooldowns.delete(cooldownKey);
     throw error;
   }
+}
+
+export async function handleDebugUsers(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  if (!isPrivateChat(message)) {
+    return new Response("OK");
+  }
+
+  const userId = message.from?.id;
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const { getAllUsers } = await import("../db/users");
+  const { getUsersWithWeightOnDate, getWeightForDate, getLastWeight } = await import("../db/weights");
+  const { getGoal, computeGoalProgress } = await import("../db/goals");
+  const { getTodayDate } = await import("../utils");
+
+  const today = getTodayDate();
+  const allUsers = await getAllUsers(env.DB);
+  const usersToday = await getUsersWithWeightOnDate(env.DB, today);
+  const todayIds = new Set(usersToday.map(u => u.user_id));
+
+  let report = `📊 **Статус пользователей** (${today})\n\n`;
+
+  report += `**Сегодня отметились (${usersToday.length}):**\n`;
+  for (const user of usersToday) {
+    const weight = await getWeightForDate(env.DB, user.user_id, today);
+    report += `• ${user.display_name}: ${weight?.weight_kg.toFixed(1)} кг\n`;
+  }
+
+  const notToday = allUsers.filter(u => !todayIds.has(u.user_id));
+  if (notToday.length > 0) {
+    report += `\n**Не отметились сегодня (${notToday.length}):**\n`;
+    for (const user of notToday) {
+      report += `• ${user.display_name}\n`;
+    }
+  }
+
+  report += `\n**Цели:**\n`;
+  let goalsCount = 0;
+  for (const user of allUsers) {
+    const goal = await getGoal(env.DB, user.user_id);
+    if (goal) {
+      goalsCount++;
+      const lastWeight = await getLastWeight(env.DB, user.user_id);
+      if (lastWeight) {
+        const progress = computeGoalProgress(goal, lastWeight.weight_kg);
+        if (progress.reached) {
+          report += `• ${user.display_name}: ${goal.target_weight_kg.toFixed(1)} кг ✅ достигнута\n`;
+        } else {
+          report += `• ${user.display_name}: ${goal.target_weight_kg.toFixed(1)} кг (${progress.percent}%, осталось ${progress.remainingKg} кг)\n`;
+        }
+      }
+    }
+  }
+
+  if (goalsCount === 0) {
+    report += "Никто не установил цель\n";
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, report, { parse_mode: "Markdown" });
 }

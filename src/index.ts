@@ -5,7 +5,7 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp, handleResetAllWeightsConfirm, handleReport } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp, handleResetAllWeightsConfirm, handleReport, handleDebugUsers } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
 import { generateDailyReport, generateWeeklyReport, generateMonthlyReport, isLastDayOfMonth } from "./handlers/reports";
@@ -129,6 +129,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
       return handleDebugRunRemindersWithLock(env, message);
     case "/debug":
       return handleDebugHelp(env, message);
+    case "/debug_users":
+      return handleDebugUsers(env, message);
     case "/debug_reset_all":
       return handleResetAllWeightsConfirm(env, message);
     case "/cancel":
