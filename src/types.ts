@@ -13,6 +13,9 @@ export interface ReportPayload {
     name: string;
     dayDelta: number | null;
     totalDelta: number | null;
+    goalRemaining?: number;
+    goalPercent?: number;
+    goalReached?: boolean;
   }>;
   missing: string[];
   hasRegressions: boolean;
@@ -22,6 +25,12 @@ export interface ReportPayload {
   firstEntryNames: string[];
   countSubmitted: number;
   countMissing: number;
+  goalsInfo?: Array<{
+    name: string;
+    remaining: number;
+    percent: number;
+    reached: boolean;
+  }>;
 }
 
 export interface HumanizedReport {

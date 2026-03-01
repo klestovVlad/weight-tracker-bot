@@ -70,6 +70,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
 
   const lines: string[] = [];
   const submitted: UserDelta[] = [];
+  const goalsInfo: Array<{ name: string; remaining: number; percent: number; reached: boolean }> = [];
   let sumDayDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
@@ -118,6 +119,15 @@ export async function generateDailyReport(env: Env): Promise<void> {
       goalPercent: goalInfo?.percent,
       goalReached: goalInfo?.reached,
     });
+
+    if (goalInfo) {
+      goalsInfo.push({
+        name: user.display_name,
+        remaining: goalInfo.remaining,
+        percent: goalInfo.percent,
+        reached: goalInfo.reached,
+      });
+    }
   }
 
   const allUsers = await getAllUsers(env.DB);
@@ -137,6 +147,7 @@ export async function generateDailyReport(env: Env): Promise<void> {
     avgDayDelta: countWithDelta > 0 ? Math.round((sumDayDelta / countWithDelta) * 100) / 100 : 0,
     firstEntryCount,
     firstEntryNames,
+    goalsInfo: goalsInfo.length > 0 ? goalsInfo : undefined,
     countSubmitted: submitted.length,
     countMissing: missing.length,
   };
@@ -173,6 +184,7 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
 
   const lines: string[] = [];
   const submitted: UserDelta[] = [];
+  const goalsInfo: Array<{ name: string; remaining: number; percent: number; reached: boolean }> = [];
   let sumWeekDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
@@ -215,6 +227,15 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
       goalPercent: goalInfo?.percent,
       goalReached: goalInfo?.reached,
     });
+
+    if (goalInfo) {
+      goalsInfo.push({
+        name: user.display_name,
+        remaining: goalInfo.remaining,
+        percent: goalInfo.percent,
+        reached: goalInfo.reached,
+      });
+    }
   }
 
   const allUsers = await getAllUsers(env.DB);
@@ -234,6 +255,7 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
     avgDayDelta: countWithDelta > 0 ? Math.round((sumWeekDelta / countWithDelta) * 100) / 100 : 0,
     firstEntryCount: 0,
     firstEntryNames: [],
+    goalsInfo: goalsInfo.length > 0 ? goalsInfo : undefined,
     countSubmitted: submitted.length,
     countMissing: missing.length,
   };
@@ -273,6 +295,7 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
 
   const lines: string[] = [];
   const submitted: UserDelta[] = [];
+  const goalsInfo: Array<{ name: string; remaining: number; percent: number; reached: boolean }> = [];
   let sumMonthDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
@@ -315,6 +338,15 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
       goalPercent: goalInfo?.percent,
       goalReached: goalInfo?.reached,
     });
+
+    if (goalInfo) {
+      goalsInfo.push({
+        name: user.display_name,
+        remaining: goalInfo.remaining,
+        percent: goalInfo.percent,
+        reached: goalInfo.reached,
+      });
+    }
   }
 
   const allUsers = await getAllUsers(env.DB);
@@ -334,6 +366,7 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
     avgDayDelta: countWithDelta > 0 ? Math.round((sumMonthDelta / countWithDelta) * 100) / 100 : 0,
     firstEntryCount: 0,
     firstEntryNames: [],
+    goalsInfo: goalsInfo.length > 0 ? goalsInfo : undefined,
     countSubmitted: submitted.length,
     countMissing: missing.length,
   };
