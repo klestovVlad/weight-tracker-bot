@@ -8,6 +8,7 @@ import { getSetting, setSetting } from "../db/settings";
 import { handleChart, getSmartDefaultPeriod } from "./chart";
 import { handleSetVacation, handleClearVacation } from "./vacation";
 import { handleLeaderboardWeekDelta, handleLeaderboardCheckins } from "./leaderboard";
+import { handleGoalMenu, handleGoalSetStart, handleGoalDelete } from "./goal";
 
 export async function handleCallbackQuery(
   env: Env,
@@ -96,6 +97,14 @@ export async function handleCallbackQuery(
       return handleLeaderboardWeekDeltaCallback(env, message.chat.id, isPrivate);
     case "leaderboard_checkins":
       return handleLeaderboardCheckinsCallback(env, message.chat.id, isPrivate);
+
+    case "menu_goal":
+      return handleGoalMenuCallback(env, message.chat.id, userId, message.message_id, callbackQuery.id, isPrivate);
+    case "goal_set":
+    case "goal_edit":
+      return handleGoalSetCallback(env, message.chat.id, userId, callbackQuery.id, isPrivate);
+    case "goal_delete":
+      return handleGoalDeleteCallback(env, message.chat.id, userId, callbackQuery.id, isPrivate);
 
     case "menu_back_main":
       return handleShowMenu(env, message.chat.id, isOwnerUser, !isPrivate);
@@ -562,4 +571,47 @@ async function handleAdminResetCancel(
   chatId: number
 ): Promise<Response> {
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.reset_cancelled);
+}
+
+async function handleGoalMenuCallback(
+  env: Env,
+  chatId: number,
+  userId: number,
+  messageId: number,
+  callbackQueryId: string,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+  await handleGoalMenu(env, chatId, userId, messageId, callbackQueryId);
+  return new Response("OK");
+}
+
+async function handleGoalSetCallback(
+  env: Env,
+  chatId: number,
+  userId: number,
+  callbackQueryId: string,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+  await handleGoalSetStart(env, chatId, userId, callbackQueryId);
+  return new Response("OK");
+}
+
+async function handleGoalDeleteCallback(
+  env: Env,
+  chatId: number,
+  userId: number,
+  callbackQueryId: string,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+  await handleGoalDelete(env, chatId, userId, callbackQueryId);
+  return new Response("OK");
 }

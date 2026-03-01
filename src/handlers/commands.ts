@@ -5,6 +5,7 @@ import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
 import { RU, formatDeltaRu } from "../i18n";
 import { getSetting, setSetting } from "../db/settings";
 import { getLastWeight, getPreviousWeight, getWeightHistory, saveWeight } from "../db/weights";
+import { generateDailyReport, generateWeeklyReport, generateMonthlyReport } from "./reports";
 
 export async function handleStart(
   env: Env,
@@ -456,4 +457,57 @@ export async function handleResetAllWeightsConfirm(
       ]
     }
   });
+}
+
+const reportCooldowns: Map<string, number> = new Map();
+
+export async function handleReport(
+  env: Env,
+  message: TelegramMessage
+): Promise<Response> {
+  if (!isPrivateChat(message)) {
+    return new Response("OK");
+  }
+
+  const userId = message.from?.id;
+  if (!userId || !isOwner(userId, env.OWNER_USER_ID)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.owner_only);
+  }
+
+  const publicChatId = await getSetting(env.DB, "public_chat_id");
+  if (!publicChatId) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.report_group_not_set);
+  }
+
+  const text = message.text || "";
+  const parts = text.split(/\s+/);
+  const reportType = parts[1]?.toLowerCase();
+
+  if (!reportType || !["daily", "weekly", "monthly"].includes(reportType)) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.report_usage);
+  }
+
+  const cooldownKey = `report_${reportType}`;
+  const now = Date.now();
+  const lastRun = reportCooldowns.get(cooldownKey) || 0;
+
+  if (now - lastRun < 60000) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.report_cooldown);
+  }
+
+  reportCooldowns.set(cooldownKey, now);
+
+  try {
+    if (reportType === "daily") {
+      await generateDailyReport(env);
+    } else if (reportType === "weekly") {
+      await generateWeeklyReport(env);
+    } else if (reportType === "monthly") {
+      await generateMonthlyReport(env);
+    }
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.report_sent);
+  } catch (error) {
+    reportCooldowns.delete(cooldownKey);
+    throw error;
+  }
 }

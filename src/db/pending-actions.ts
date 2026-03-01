@@ -33,3 +33,5 @@ export async function clearPendingAction(db: D1Database, userId: number): Promis
     .bind(userId)
     .run();
 }
+
+export const setPendingAction = upsertPendingAction;

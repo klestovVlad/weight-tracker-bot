@@ -5,10 +5,11 @@ import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
 import { getPendingAction, clearPendingAction } from "./db/pending-actions";
-import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp, handleResetAllWeightsConfirm } from "./handlers/commands";
+import { handleStart, handleSetGroup, handleSetBotUsername, handleStatus, handleMe, handleHistoryCommand, handleDebugAddDay, handleDebugDaily, handleDebugWeekly, handleDebugOpenai, handleDebugHelp, handleResetAllWeightsConfirm, handleReport } from "./handlers/commands";
 import { handleWeightInput, handleEditWeight } from "./handlers/weight";
 import { handleCallbackQuery } from "./handlers/callback";
-import { generateDailyReport, generateWeeklyReport } from "./handlers/reports";
+import { generateDailyReport, generateWeeklyReport, generateMonthlyReport, isLastDayOfMonth } from "./handlers/reports";
+import { handleGoalInput } from "./handlers/goal";
 import { runReminders } from "./handlers/reminders";
 import { withJobLock, getWeekKey } from "./helpers/job-lock";
 import { checkRateLimit } from "./helpers/rate-limit";
@@ -60,6 +61,11 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
             message.chat.id,
             RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX)
           );
+        }
+      } else if (pendingAction.action === "goal_set") {
+        const handled = await handleGoalInput(env, message.chat.id, userId, text);
+        if (handled) {
+          return new Response("OK");
         }
       }
     }
@@ -136,6 +142,8 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
         return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, `🤖 Weight Tracker Bot v${APP_VERSION}`);
       }
       return new Response("OK");
+    case "/report":
+      return handleReport(env, message);
     default:
       return new Response("OK");
   }
@@ -298,6 +306,22 @@ export default {
         await withJobLock(env, "daily_report", today, async () => {
           await generateDailyReport(env);
           logJobFinish("daily_report");
+        });
+
+        if (isLastDayOfMonth(today)) {
+          logJobStart("monthly_report");
+          const monthKey = today.substring(0, 7);
+          await withJobLock(env, "monthly_report", monthKey, async () => {
+            await generateMonthlyReport(env);
+            logJobFinish("monthly_report");
+          });
+        }
+      } else if (event.cron === "0 16 * * SUN" && isLastDayOfMonth(today)) {
+        logJobStart("monthly_report_sun");
+        const monthKey = today.substring(0, 7);
+        await withJobLock(env, "monthly_report", monthKey, async () => {
+          await generateMonthlyReport(env);
+          logJobFinish("monthly_report");
         });
       }
     } catch (error) {

@@ -92,9 +92,12 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
     ]);
     keyboard.push([
       { text: RU.btn_edit_last, callback_data: "menu_edit_last" },
-      { text: RU.btn_vacation, callback_data: "menu_vacation" }
+      { text: RU.btn_goal, callback_data: "menu_goal" }
     ]);
-    keyboard.push([{ text: RU.btn_help, callback_data: "menu_help" }]);
+    keyboard.push([
+      { text: RU.btn_vacation, callback_data: "menu_vacation" },
+      { text: RU.btn_help, callback_data: "menu_help" }
+    ]);
   }
 
   if (isOwnerUser) {

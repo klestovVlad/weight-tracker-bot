@@ -141,6 +141,38 @@ Press **🏆 Лидерборд** to see rankings:
 
 **Privacy:** Leaderboard shows only deltas and check-in counts, never absolute weights.
 
+### Target Weight Goal (Private Only)
+
+Press **🎯 Цель** to set a target weight:
+
+- Set your goal weight (e.g., 75.0 kg)
+- Bot tracks your progress as a percentage
+- Progress bar shows how close you are to your goal
+- Edit or delete goal anytime
+
+**In group reports:** If you have a goal, reports show "до цели X кг (Y%)" — remaining kilograms and percent completed. The absolute goal number and current weight are never shown.
+
+### Monthly Report
+
+On the last day of each month, the bot automatically posts a monthly summary to the group:
+
+- Month delta for each user
+- Number of check-ins
+- Overall total delta
+- Goal progress (if set)
+
+**Privacy:** Same as daily/weekly — only deltas, never absolute weights.
+
+### Group Posting
+
+**Important change:** The bot no longer posts to the group when users submit or edit weights individually.
+
+The group receives messages only via:
+- Daily report (automated, Mon-Sat at 19:00 Asia/Nicosia)
+- Weekly report (automated, Sunday at 19:00 Asia/Nicosia)
+- Monthly report (automated, last day of month)
+- On-demand report requested by owner (`/report daily|weekly|monthly`)
+
 ### Commands
 
 | Command | Description |
@@ -154,6 +186,7 @@ Press **🏆 Лидерборд** to see rankings:
 | `/setgroup` | Configure group for delta posting (owner only) |
 | `/setbotusername <name>` | Set bot username for deep links (owner only) |
 | `/status` | Show bot configuration (owner only) |
+| `/report daily\|weekly\|monthly` | Send report to group on demand (owner only) |
 
 ## Onboarding
 

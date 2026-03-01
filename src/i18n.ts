@@ -180,6 +180,39 @@ ${link}`,
     `• <b>${name}</b>: неделя — | всего ${totalDelta} (${checkins}/7)`,
   report_no_entries_week: "📭 На этой неделе никто не отмечался.",
 
+  // Monthly report
+  report_monthly_header: "📅 Итоги месяца:\n",
+  report_monthly_line: (name: string, monthDelta: string, checkins: number, totalDelta: string) =>
+    `• <b>${name}</b>: месяц ${monthDelta} (${checkins} отм.) | всего ${totalDelta}`,
+  report_monthly_no_delta: (name: string, checkins: number, totalDelta: string) =>
+    `• <b>${name}</b>: месяц — (${checkins} отм.) | всего ${totalDelta}`,
+  report_no_entries_month: "📭 В этом месяце никто не отмечался.",
+
+  // Goal
+  btn_goal: "🎯 Цель",
+  goal_menu_title: "🎯 Управление целью",
+  btn_goal_set: "➕ Установить цель",
+  btn_goal_edit: "✏️ Изменить цель",
+  btn_goal_delete: "🗑️ Удалить цель",
+  goal_ask_target: "Введи целевой вес (например: 75.0):",
+  goal_need_weight_first: "Сначала внеси хотя бы один замер 🙂",
+  goal_saved: "🎯 Цель сохранена!",
+  goal_progress: (percent: number, bar: string, remaining: number) =>
+    `Прогресс: ${percent}% ${bar}\nДо цели: ${remaining} кг`,
+  goal_reached: "🎯 Цель достигнута! 🎉",
+  goal_deleted: "Цель удалена ✅",
+  goal_not_set: "У тебя пока нет цели. Хочешь установить?",
+  goal_same_as_start: "Цель совпадает со стартом — уже достигнута! 🎉",
+  goal_snippet: (remaining: number, percent: number) =>
+    `🎯 до цели ${remaining} кг (${percent}%)`,
+  goal_snippet_reached: "🎯 цель достигнута ✅",
+
+  // Report command
+  report_group_not_set: "Группа не привязана. Используй /setgroup в группе.",
+  report_cooldown: "Подожди минутку перед следующим отчётом.",
+  report_sent: "Отчёт отправлен в группу ✅",
+  report_usage: "Использование: /report daily | weekly | monthly",
+
   // Common
   no_data: "—",
 };

@@ -118,3 +118,29 @@ export async function sendPhoto(
     body: JSON.stringify(body),
   });
 }
+
+export async function editMessageText(
+  token: string,
+  chatId: number | string,
+  messageId: number,
+  text: string,
+  replyMarkup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> }
+): Promise<Response> {
+  const url = `https://api.telegram.org/bot${token}/editMessageText`;
+
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+    text: text,
+  };
+
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+
+  return fetchWithRetry(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
