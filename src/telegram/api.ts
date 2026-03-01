@@ -95,27 +95,42 @@ export async function answerCallbackQuery(
   });
 }
 
+/** Photo as HTTP URL (Telegram fetches it) or base64 (GPT image models return b64_json). */
+export type PhotoInput = string | { b64: string };
+
 export async function sendPhoto(
   token: string,
   chatId: number | string,
-  photoUrl: string,
+  photo: PhotoInput,
   caption?: string
 ): Promise<Response> {
   const url = `https://api.telegram.org/bot${token}/sendPhoto`;
 
-  const body: Record<string, unknown> = {
-    chat_id: chatId,
-    photo: photoUrl,
-  };
-
-  if (caption) {
-    body.caption = caption;
+  if (typeof photo === "string") {
+    const body: Record<string, unknown> = {
+      chat_id: chatId,
+      photo,
+    };
+    if (caption) body.caption = caption;
+    return fetchWithRetry(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
   }
+
+  const binary = atob(photo.b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: "image/png" });
+  const form = new FormData();
+  form.set("chat_id", String(chatId));
+  form.set("photo", blob, "image.png");
+  if (caption) form.set("caption", caption);
 
   return fetchWithRetry(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: form,
   });
 }
 
