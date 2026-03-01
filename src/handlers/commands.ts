@@ -369,6 +369,10 @@ export async function handleDebugOpenai(
     hasRegressions: true,
     sumDayDelta: -0.3,
     avgDayDelta: -0.15,
+    firstEntryCount: 1,
+    firstEntryNames: ["Иван"],
+    countSubmitted: 3,
+    countMissing: 2,
   };
 
   await sendMessage(

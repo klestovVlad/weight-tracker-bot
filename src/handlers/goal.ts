@@ -1,4 +1,5 @@
 import { Env } from "../types";
+import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
 import { RU } from "../i18n";
 import { sendMessage, answerCallbackQuery, editMessageText } from "../telegram/api";
 import { getGoal, upsertGoal, deleteGoal, computeGoalProgress, generateProgressBar } from "../db/goals";
@@ -75,7 +76,7 @@ export async function handleGoalInput(
 ): Promise<boolean> {
   const weight = parseWeight(text);
   if (weight === null) {
-    await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.invalid_weight);
+    await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.invalid_weight(WEIGHT_MIN, WEIGHT_MAX));
     return true;
   }
 
