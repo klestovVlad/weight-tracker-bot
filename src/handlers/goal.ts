@@ -29,11 +29,15 @@ export async function handleGoalMenu(
     const lastWeight = await getLastWeight(env.DB, userId);
     if (lastWeight) {
       const progress = computeGoalProgress(goal, lastWeight.weight_kg);
+      text += "\n\n" + RU.goal_current(
+        goal.target_weight_kg.toFixed(1),
+        lastWeight.weight_kg.toFixed(1)
+      );
       if (progress.reached) {
-        text += "\n\n" + RU.goal_reached;
+        text += "\n" + RU.goal_reached;
       } else {
         const bar = generateProgressBar(progress.percent);
-        text += "\n\n" + RU.goal_progress(progress.percent, bar, progress.remainingKg);
+        text += RU.goal_progress(progress.percent, bar, progress.remainingKg);
       }
     }
   } else {

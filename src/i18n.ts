@@ -197,6 +197,8 @@ ${link}`,
   goal_ask_target: "Введи целевой вес (например: 75.0):",
   goal_need_weight_first: "Сначала внеси хотя бы один замер 🙂",
   goal_saved: "🎯 Цель сохранена!",
+  goal_current: (target: string, current: string) =>
+    `🎯 Цель: ${target} кг\n📍 Сейчас: ${current} кг\n`,
   goal_progress: (percent: number, bar: string, remaining: number) =>
     `Прогресс: ${percent}% ${bar}\nДо цели: ${remaining} кг`,
   goal_reached: "🎯 Цель достигнута! 🎉",
