@@ -1,3 +1,12 @@
+/** 1 день | 2,3,4 дня | 0,5-20,... дней */
+function pluralDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "день";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
+  return "дней";
+}
+
 export const RU = {
   // Welcome & Menu
   welcome: `👋 Привет! Я помогу отслеживать твой вес.
@@ -127,12 +136,12 @@ export const RU = {
   history_header: (count: number) => `📊 Последние ${count} записей:\n`,
   history_empty: "📭 Записей пока нет. Отправь свой первый вес!",
   
-  progress_header: (days: number) => `Прогресс за ${days} дней\n`,
+  progress_header: (days: number) => `Прогресс за ${days} ${pluralDays(days)}\n`,
   progress_last_entry: (date: string, weight: string) =>
     `📍 Последняя запись: ${date} — ${weight} кг`,
   progress_day_delta: (delta: string) => `Сегодня: Δ ${delta}`,
   progress_period_delta: (delta: string) => `За период: Δ ${delta}`,
-  progress_streak: (days: number) => `🔥 Без пропусков: ${days} дней`,
+  progress_streak: (days: number) => `🔥 Без пропусков: ${days} ${pluralDays(days)}`,
   progress_checkins: (count: number, total: number) => `Отметок: ${count}/${total}`,
   progress_min_max: (min: string, max: string) => `мин ${min} — макс ${max}`,
   progress_not_today: "⚠️ Сегодня не отмечался",
@@ -189,10 +198,10 @@ ${link}`,
   report_no_entries_today: "📭 Сегодня никто не отметился.",
   report_achievements_header: "🏅 Новые ачивки сегодня:",
   report_achievement_line: (name: string, icon: string, days: number) =>
-    `• <b>${name}</b>: ${icon} ${days} дней подряд`,
+    `• <b>${name}</b>: ${icon} ${days} ${pluralDays(days)} подряд`,
   report_broken_header: "💔 Прервали серию:",
   report_broken_line: (name: string, streak: number) =>
-    `• <b>${name}</b> прервал серию из ${streak} дней`,
+    `• <b>${name}</b> прервал серию из ${streak} ${pluralDays(streak)}`,
   report_heroes_header: "🏆 Герой недели:",
   report_hero_line: (name: string, weekDelta: string, checkins: number) =>
     `• <b>${name}</b> — ${weekDelta} (${checkins}/7)`,
@@ -242,14 +251,16 @@ ${link}`,
 
   // Achievements (personal screen)
   achievements_title: "🏅 Твои достижения",
-  achievements_streak: (days: number, icon: string) => `Текущий стрик: ${days} дней ${icon}`,
+  achievements_streak: (days: number, icon: string) =>
+    `Текущий стрик: ${days} ${pluralDays(days)} ${icon}`,
   achievements_next: (icon: string, days: number, left: number) =>
-    `До следующего уровня (${icon} ${days} дней) осталось: ${left} дней`,
-  achievements_level_done: (icon: string, days: number) => `${icon} ${days} дней — достигнуто`,
+    `До следующего уровня (${icon} ${days} ${pluralDays(days)}) осталось: ${left} ${pluralDays(left)}`,
+  achievements_level_done: (icon: string, days: number) =>
+    `${icon} ${days} ${pluralDays(days)} — достигнуто`,
   achievements_level_in_progress: (icon: string, days: number) =>
-    `${icon} ${days} дней — в процессе`,
+    `${icon} ${days} ${pluralDays(days)} — в процессе`,
   achievements_start: (left: number) =>
-    `Начало положено 🙂 До первой ачивки (🔹 3 дня) осталось: ${left} дней`,
+    `Начало положено 🙂 До первой ачивки (🔹 3 ${pluralDays(3)}) осталось: ${left} ${pluralDays(left)}`,
   achievements_legend: "Ты легенда 👑 Стрик 90+ дней!",
   achievements_history_title: "История уровней:",
 
