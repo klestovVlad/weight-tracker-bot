@@ -1,5 +1,6 @@
 import { Env, ReportPayload, HumanizedReport } from "./types";
 import { logError } from "./helpers/logging";
+import { validateGptMeme } from "./helpers/meme";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_LENGTH = 600;
@@ -109,14 +110,33 @@ OUTRO:
 «Как всегда в строю, <b>Влад</b>! Вот это дисциплина 💪»
 
 -------------------------
+МЕМ-ОБЪЕКТ (только для weekly/monthly)
+
+Для недельного и месячного отчёта ОБЯЗАТЕЛЬНО верни объект meme:
+- meme.object — один предмет для сравнения с суммарным результатом (существительное/фраза по-русски, например «пара зимних сапог», «арбуз», «книга»).
+- Этот же объект используй в тексте outro в сравнении с sumDayDelta.
+- meme.emoji — необязательно, один эмодзи если хочешь.
+- meme.caption — необязательно, короткая подпись БЕЗ цифр (до 140 символов).
+- В полях meme НЕ указывай имена людей и НЕ указывай вес/числа.
+
+Для daily отчёта meme может быть null или отсутствовать.
+
+-------------------------
 ФОРМАТ ОТВЕТА
 
-Строго JSON:
+Строго JSON, без лишних ключей и текста снаружи:
 
 {
   "intro": "...",
-  "outro": "..."
+  "outro": "...",
+  "meme": {
+    "object": "строка — один предмет по-русски",
+    "emoji": "по желанию",
+    "caption": "по желанию, без цифр"
+  }
 }
+
+Для daily можно: "meme": null или не включать meme.
 `;
 
 function extractAllowedNumbers(payload: ReportPayload): Set<string> {
@@ -170,7 +190,7 @@ export async function humanizeReport(
   payload: ReportPayload,
   env: Env,
 ): Promise<HumanizedReport> {
-  const fallback: HumanizedReport = { intro: "", outro: "" };
+  const fallback: HumanizedReport = { intro: "", outro: "", meme: null };
 
   if (!env.OPENAI_API_KEY) {
     return fallback;
@@ -224,9 +244,9 @@ ${JSON.stringify(payload, null, 2)}`;
       return fallback;
     }
 
-    let parsed: HumanizedReport;
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(jsonMatch[0]) as HumanizedReport;
+      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     } catch {
       return fallback;
     }
@@ -245,9 +265,12 @@ ${JSON.stringify(payload, null, 2)}`;
       return fallback;
     }
 
+    const meme = parsed.meme != null ? validateGptMeme(parsed.meme) : null;
+
     return {
       intro: parsed.intro.slice(0, MAX_LENGTH),
       outro: parsed.outro.slice(0, MAX_LENGTH),
+      meme: meme ?? null,
     };
   } catch (error) {
     clearTimeout(timeoutId);

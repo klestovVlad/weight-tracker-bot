@@ -137,6 +137,9 @@ export async function handleCallbackQuery(
     case "owner_report_monthly":
       return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "monthly");
 
+    case "owner_debug_meme":
+      return handleOwnerDebugMeme(env, message.chat.id, userId, isOwnerUser, isPrivate);
+
     default:
       return new Response("OK");
   }
@@ -656,6 +659,7 @@ async function handleOwnerAdminMenu(
     inline_keyboard: [
       [{ text: RU.btn_admin_day_status, callback_data: "owner_day_status" }],
       [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
+      [{ text: RU.btn_admin_debug_meme, callback_data: "owner_debug_meme" }],
       [{ text: RU.btn_back, callback_data: "menu_back_main" }],
     ],
   };
@@ -805,4 +809,18 @@ async function handleOwnerReportSend(
     reportCooldowns.delete(cooldownKey);
     throw error;
   }
+}
+
+async function handleOwnerDebugMeme(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+  await upsertPendingAction(env.DB, userId, "debug_meme");
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.debug_meme_ask);
 }

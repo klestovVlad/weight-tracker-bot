@@ -1,9 +1,11 @@
 import { Env, ReportPayload } from "../types";
-import { sendMessage } from "../telegram/api";
+import { sendMessage, sendPhoto } from "../telegram/api";
 import { getTodayDate, getDateWithOffset, getStreakIcon, STREAK_LEVELS, getPreviousDay } from "../utils";
 import { RU, formatDeltaRu } from "../i18n";
 import { getSetting } from "../db/settings";
 import { humanizeReport } from "../openai";
+import { pickMemeObject } from "../helpers/meme";
+import { getMemeImageUrl } from "../helpers/meme-image";
 import {
   getUsersWithWeightOnDate,
   getUsersWithWeightInRange,
@@ -332,7 +334,18 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
     countMissing: missing.length,
   };
 
-  const { intro, outro } = await humanizeReport(payload, env);
+  const result = await humanizeReport(payload, env);
+  const { intro, outro, meme } = result;
+
+  const memesEnabled = (await getSetting(env.DB, "memes_enabled")) === "true";
+  const memeObject = meme?.object ?? pickMemeObject(payload.sumDayDelta);
+  if (memesEnabled) {
+    const imageUrl = await getMemeImageUrl(env, memeObject, payload.sumDayDelta);
+    if (imageUrl) {
+      const caption = meme?.caption ?? "";
+      await sendPhoto(env.TELEGRAM_BOT_TOKEN, publicChatId, imageUrl, caption || undefined);
+    }
+  }
 
   let report = intro ? intro + "\n\n" : "";
   report += lines.join("\n");
@@ -445,7 +458,18 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
     countMissing: missing.length,
   };
 
-  const { intro, outro } = await humanizeReport(payload, env);
+  const result = await humanizeReport(payload, env);
+  const { intro, outro, meme } = result;
+
+  const memesEnabled = (await getSetting(env.DB, "memes_enabled")) === "true";
+  const memeObject = meme?.object ?? pickMemeObject(payload.sumDayDelta);
+  if (memesEnabled) {
+    const imageUrl = await getMemeImageUrl(env, memeObject, payload.sumDayDelta);
+    if (imageUrl) {
+      const caption = meme?.caption ?? "";
+      await sendPhoto(env.TELEGRAM_BOT_TOKEN, publicChatId, imageUrl, caption || undefined);
+    }
+  }
 
   let report = intro ? intro + "\n\n" : "";
   report += lines.join("\n");

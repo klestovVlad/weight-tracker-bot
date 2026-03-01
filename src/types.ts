@@ -33,9 +33,16 @@ export interface ReportPayload {
   }>;
 }
 
+export interface GptMeme {
+  object: string;
+  emoji?: string;
+  caption?: string;
+}
+
 export interface HumanizedReport {
   intro: string;
   outro: string;
+  meme?: GptMeme | null;
 }
 
 export interface TelegramUser {

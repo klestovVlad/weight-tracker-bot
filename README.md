@@ -11,6 +11,7 @@ Telegram bot for tracking weight with privacy-first design. Built on Cloudflare 
 - **Timezone support** — Asia/Nicosia timezone for date calculation
 - **Scheduled reports** — daily (Mon-Sat) and weekly (Sunday) group reports at 19:00 Asia/Nicosia
 - **AI-powered reports** — OpenAI generates friendly intro/outro for group reports (optional)
+- **Meme image (weekly/monthly)** — GPT chooses a comparison object; optional meme image sent before report when `memes_enabled` is on (with validation and fallback)
 - **Daily reminders** — private reminder at 11:00 Asia/Nicosia for users who haven't logged weight
 - **Streak achievements** — levels (🔹→👑), new-achievement and broken-streak announcements in daily report, weekly hero, personal achievements screen (🏅 Мои ачивки)
 
@@ -200,6 +201,15 @@ On the last day of each month, the bot automatically posts a monthly summary to 
 
 **Privacy:** Same as daily/weekly — only deltas, never absolute weights.
 
+### Meme image (weekly/monthly)
+
+For weekly and monthly reports, the bot can send a **meme image** before the text report when the `memes_enabled` setting is enabled (in the `settings` table, key `memes_enabled`, value `true`).
+
+- **GPT chooses the object:** OpenAI returns a JSON field `meme.object` — a short Russian phrase for the team sum comparison (e.g. “пара зимних сапог”, “арбуз”). The same object is used in the outro text and for image generation.
+- **Validation:** The code checks that the object is 2–60 characters, Russian letters/spaces/hyphen only; optional `emoji` and `caption` (caption must not contain digits). If validation fails, the object is ignored.
+- **Fallback:** If GPT omits or invalidates the meme object, a deterministic object is picked from a fixed list based on `sumDayDelta`, so the image can still be generated.
+- **Reliability:** If image generation (OpenAI Images API) fails, the text report is still sent. If GPT JSON parsing fails, intro/outro and meme fall back as in the rest of the report flow.
+
 ### Group Posting
 
 **Important change:** The bot no longer posts to the group when users submit or edit weights individually.
@@ -348,6 +358,7 @@ The group receives messages only via:
 - **Telegram retry** — automatic retry on 429/5xx errors with backoff
 - **OpenAI timeout** — 10 second timeout, fallback to plain report on failure
 - **OpenAI validation** — suspicious numbers filtered, invalid JSON rejected
+- **Meme object** — GPT returns a comparison object for weekly/monthly; code validates it (length, Russian-only, no digits in caption). If invalid or missing, a deterministic fallback object is used. If image generation fails, the text report is still sent.
 - **Privacy guards** — group messages never contain absolute weights
 
 ## Backup

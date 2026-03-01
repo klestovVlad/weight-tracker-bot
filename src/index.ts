@@ -69,6 +69,24 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
         if (handled) {
           return new Response("OK");
         }
+      } else if (pendingAction.action === "debug_meme" && isOwner(userId, env.OWNER_USER_ID)) {
+        const delta = parseFloat(text.replace(",", "."));
+        if (!isNaN(delta) && delta >= -50 && delta <= 50) {
+          await clearPendingAction(env.DB, userId);
+          await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_sending);
+          const { pickMemeObject } = await import("./helpers/meme");
+          const { getMemeImageUrl } = await import("./helpers/meme-image");
+          const { sendPhoto } = await import("./telegram/api");
+          const object = pickMemeObject(delta);
+          const imageUrl = await getMemeImageUrl(env, object, delta);
+          if (imageUrl) {
+            await sendPhoto(env.TELEGRAM_BOT_TOKEN, message.chat.id, imageUrl, RU.debug_meme_sent(object));
+          } else {
+            await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_failed);
+          }
+          return new Response("OK");
+        }
+        return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_ask);
       }
     }
   }
