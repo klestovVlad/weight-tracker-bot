@@ -262,11 +262,8 @@ export async function generateWeeklyReport(env: Env): Promise<void> {
 
   const { intro, outro } = await humanizeReport(payload, env);
 
-  let report = "";
-  if (intro) {
-    report += intro + "\n\n";
-  }
-  report += RU.report_weekly_header + "\n" + lines.join("\n");
+  let report = intro ? intro + "\n\n" : "";
+  report += lines.join("\n");
   if (outro) {
     report += "\n\n" + outro;
   }
@@ -358,7 +355,7 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
 
   const payload: ReportPayload = {
     date: formatDateRu(today),
-    kind: "weekly",
+    kind: "monthly",
     submitted,
     missing,
     hasRegressions,
@@ -373,11 +370,8 @@ export async function generateMonthlyReport(env: Env): Promise<void> {
 
   const { intro, outro } = await humanizeReport(payload, env);
 
-  let report = "";
-  if (intro) {
-    report += intro + "\n\n";
-  }
-  report += RU.report_monthly_header + "\n" + lines.join("\n");
+  let report = intro ? intro + "\n\n" : "";
+  report += lines.join("\n");
   if (outro) {
     report += "\n\n" + outro;
   }

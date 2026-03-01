@@ -8,6 +8,15 @@ const TIMEOUT_MS = 10000;
 const SYSTEM_PROMPT = `Ты харизматичный, энергичный ведущий группы по снижению веса! 🎤
 Твоя задача — написать ЖИВОЕ, ЭМОЦИОНАЛЬНОЕ intro и outro для отчёта.
 
+В payload приходит поле "kind": "daily" | "weekly" | "monthly" и "sumDayDelta" — суммарное изменение веса команды за период (отрицательное = сбросили, положительное = набрали).
+
+ДЛЯ НЕДЕЛЬНОГО И МЕСЯЧНОГО ОТЧЁТА (kind === "weekly" или "monthly"):
+- INTRO: сделай полноценную шапку отчёта: заголовок (типа "Недельный отчёт" / "Месячный отчёт") и 1–2 живые фразы, что период пролетел и пора смотреть результаты. Без перечисления людей — только атмосфера и переход к цифрам.
+- OUTRO: обязательно включи одну фразу про суммарный результат команды (sumDayDelta): сравнение с чем-то из мира вещей. Примеры: "Все вместе вы сбросили 1,9 кг — это как пара зимних сапог по весу 🎒"; "Набрали 0,5 кг на всех — в пересчёте как банка Nutella 🧈"; при нуле — что-то вроде "Команда держится ровно, ноль на всех — стабильность! 💪". Сравнения могут быть абсурдными и разными каждый раз (арбуз, кошка, сапоги, гречка, пельмени, книга и т.д.). Используй только число из sumDayDelta, без выдуманных кг.
+
+ДЛЯ ДНЕВНОГО (kind === "daily"):
+- INTRO и OUTRO как раньше, без обязательного суммарного блока — можно по желанию.
+
 ТОН И СТИЛЬ:
 - Пиши как лучший друг, который РЕАЛЬНО болеет за каждого!
 - Будь эмоциональным, используй восклицания!
@@ -43,25 +52,17 @@ const SYSTEM_PROMPT = `Ты харизматичный, энергичный в�
 РЕГУЛЯРНОСТЬ:
 - Хвали тех, кто стабильно отмечается: "Как всегда в строю, <b>Вася</b>! Вот это дисциплина! 🎖️"
 
-OUTRO — СВОБОДНЫЙ КОММЕНТАРИЙ:
-- Пиши в свободной форме, как живой человек
-- Это может быть что угодно: шутка, философская мысль, мотивация, наблюдение
-- Комментируй общую картину дня/недели
-- Можешь пошутить про погоду, выходные, понедельник, пятницу
-- Примеры:
-  • "Понедельник — отличный день для нового старта! А кто-то уже начал 😏"
-  • "Выходные прошли, но результаты остались! Молодцы 👏"
-  • "Интересная неделя была... Кто-то жёг, кто-то отдыхал. Всё по плану! 😄"
-  • "Весна близко, а значит мотивация растёт! Или нет? 🤔"
-- Не повторяй шаблонные фразы типа "Продолжайте в том же духе"
-- Будь креативным и непредсказуемым!
+OUTRO (общее):
+- Пиши в свободной форме, как живой человек: шутка, мысль, мотивация, наблюдение.
+- Для weekly/monthly — обязательно включи строку про sumDayDelta (это сумарный потеряный вес команды за период) и смешное сравнение с предметом (арбуз, кошка, сапоги, гречка, пельмени, книга и т.д.). Используй только число из sumDayDelta, без выдуманных кг.
+- Не повторяй шаблонные фразы типа "Продолжайте в том же духе". Будь креативным!
 
 Ответь строго JSON:
 {"intro": "...", "outro": "..."}`;
 
 function extractAllowedNumbers(payload: ReportPayload): Set<string> {
   const allowed = new Set<string>();
-  
+
   for (const user of payload.submitted) {
     if (user.dayDelta !== null) {
       allowed.add(Math.abs(user.dayDelta).toFixed(1));
@@ -72,37 +73,43 @@ function extractAllowedNumbers(payload: ReportPayload): Set<string> {
       allowed.add(String(Math.abs(user.totalDelta)));
     }
   }
-  
+
   allowed.add(String(payload.submitted.length));
   allowed.add(String(payload.missing.length));
   allowed.add(String(Math.abs(payload.sumDayDelta).toFixed(1)));
   allowed.add(String(Math.abs(payload.avgDayDelta).toFixed(2)));
-  
+
   for (let i = 0; i <= 31; i++) {
     allowed.add(String(i));
   }
-  
+
   return allowed;
 }
 
-function containsSuspiciousNumbers(text: string, allowedNumbers: Set<string>): boolean {
+function containsSuspiciousNumbers(
+  text: string,
+  allowedNumbers: Set<string>,
+): boolean {
   const numbers = text.match(/\d+\.?\d*/g) || [];
-  
+
   for (const num of numbers) {
     const normalized = parseFloat(num);
     if (normalized >= 30 && normalized <= 300) {
-      if (!allowedNumbers.has(num) && !allowedNumbers.has(normalized.toFixed(1))) {
+      if (
+        !allowedNumbers.has(num) &&
+        !allowedNumbers.has(normalized.toFixed(1))
+      ) {
         return true;
       }
     }
   }
-  
+
   return false;
 }
 
 export async function humanizeReport(
   payload: ReportPayload,
-  env: Env
+  env: Env,
 ): Promise<HumanizedReport> {
   const fallback: HumanizedReport = { intro: "", outro: "" };
 
@@ -123,7 +130,7 @@ ${JSON.stringify(payload, null, 2)}`;
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: model,
@@ -144,7 +151,7 @@ ${JSON.stringify(payload, null, 2)}`;
       return fallback;
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
 
@@ -170,9 +177,11 @@ ${JSON.stringify(payload, null, 2)}`;
     }
 
     const allowedNumbers = extractAllowedNumbers(payload);
-    
-    if (containsSuspiciousNumbers(parsed.intro, allowedNumbers) ||
-        containsSuspiciousNumbers(parsed.outro, allowedNumbers)) {
+
+    if (
+      containsSuspiciousNumbers(parsed.intro, allowedNumbers) ||
+      containsSuspiciousNumbers(parsed.outro, allowedNumbers)
+    ) {
       logError("OpenAI response contains suspicious numbers, using fallback");
       return fallback;
     }

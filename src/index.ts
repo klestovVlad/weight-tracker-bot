@@ -23,7 +23,9 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
   const userId = message.from?.id;
   const text = message.text?.trim() ?? "";
 
-  if (userId && isPrivateChat(message)) {
+  const isCommand = text.startsWith("/");
+
+  if (userId && isPrivateChat(message) && !isCommand) {
     const pendingAction = await getPendingAction(env.DB, userId);
 
     if (pendingAction) {

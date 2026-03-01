@@ -8,7 +8,7 @@ export interface Env {
 
 export interface ReportPayload {
   date: string;
-  kind: "daily" | "weekly";
+  kind: "daily" | "weekly" | "monthly";
   submitted: Array<{
     name: string;
     dayDelta: number | null;
