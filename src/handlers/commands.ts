@@ -528,8 +528,8 @@ export async function handleDebugUsers(
   }
 
   const { getAllUsers } = await import("../db/users");
-  const { getUsersWithWeightOnDate, getWeightForDate, getLastWeight } = await import("../db/weights");
-  const { getGoal, computeGoalProgress } = await import("../db/goals");
+  const { getUsersWithWeightOnDate } = await import("../db/weights");
+  const { getGoal } = await import("../db/goals");
   const { getTodayDate } = await import("../utils");
 
   const today = getTodayDate();
@@ -539,40 +539,48 @@ export async function handleDebugUsers(
 
   let report = `📊 **Статус пользователей** (${today})\n\n`;
 
-  report += `**Сегодня отметились (${usersToday.length}):**\n`;
-  for (const user of usersToday) {
-    const weight = await getWeightForDate(env.DB, user.user_id, today);
-    report += `• ${user.display_name}: ${weight?.weight_kg.toFixed(1)} кг\n`;
+  report += `**✅ Отметились сегодня (${usersToday.length}):**\n`;
+  if (usersToday.length > 0) {
+    for (const user of usersToday) {
+      report += `• ${user.display_name}\n`;
+    }
+  } else {
+    report += "Никто\n";
   }
 
   const notToday = allUsers.filter(u => !todayIds.has(u.user_id));
+  report += `\n**❌ Не отметились (${notToday.length}):**\n`;
   if (notToday.length > 0) {
-    report += `\n**Не отметились сегодня (${notToday.length}):**\n`;
     for (const user of notToday) {
       report += `• ${user.display_name}\n`;
     }
+  } else {
+    report += "Все отметились! 🎉\n";
   }
 
-  report += `\n**Цели:**\n`;
-  let goalsCount = 0;
+  const usersWithGoals: string[] = [];
+  const usersWithoutGoals: string[] = [];
   for (const user of allUsers) {
     const goal = await getGoal(env.DB, user.user_id);
     if (goal) {
-      goalsCount++;
-      const lastWeight = await getLastWeight(env.DB, user.user_id);
-      if (lastWeight) {
-        const progress = computeGoalProgress(goal, lastWeight.weight_kg);
-        if (progress.reached) {
-          report += `• ${user.display_name}: ${goal.target_weight_kg.toFixed(1)} кг ✅ достигнута\n`;
-        } else {
-          report += `• ${user.display_name}: ${goal.target_weight_kg.toFixed(1)} кг (${progress.percent}%, осталось ${progress.remainingKg} кг)\n`;
-        }
-      }
+      usersWithGoals.push(user.display_name);
+    } else {
+      usersWithoutGoals.push(user.display_name);
     }
   }
 
-  if (goalsCount === 0) {
-    report += "Никто не установил цель\n";
+  report += `\n**🎯 Установили цель (${usersWithGoals.length}):**\n`;
+  if (usersWithGoals.length > 0) {
+    report += usersWithGoals.map(n => `• ${n}`).join("\n") + "\n";
+  } else {
+    report += "Никто\n";
+  }
+
+  report += `\n**Без цели (${usersWithoutGoals.length}):**\n`;
+  if (usersWithoutGoals.length > 0) {
+    report += usersWithoutGoals.map(n => `• ${n}`).join("\n") + "\n";
+  } else {
+    report += "У всех есть цель! 🎉\n";
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, report, { parse_mode: "Markdown" });
