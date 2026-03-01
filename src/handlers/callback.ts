@@ -115,6 +115,24 @@ export async function handleCallbackQuery(
     case "admin_reset_cancel":
       return handleAdminResetCancel(env, message.chat.id);
 
+    case "owner_admin_menu":
+      return handleOwnerAdminMenu(env, message.chat.id, isOwnerUser, isPrivate);
+
+    case "owner_day_status":
+      return handleOwnerDayStatus(env, message.chat.id, isOwnerUser, isPrivate);
+
+    case "owner_send_report_menu":
+      return handleOwnerReportMenu(env, message.chat.id, isOwnerUser, isPrivate);
+
+    case "owner_report_daily":
+      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "daily");
+
+    case "owner_report_weekly":
+      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "weekly");
+
+    case "owner_report_monthly":
+      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "monthly");
+
     default:
       return new Response("OK");
   }
@@ -332,6 +350,10 @@ async function handleDebugOpenai(
     hasRegressions: true,
     sumDayDelta: -0.3,
     avgDayDelta: -0.15,
+    firstEntryCount: 1,
+    firstEntryNames: ["Иван"],
+    countSubmitted: 3,
+    countMissing: 2,
   };
 
   await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🤖 Запрос в OpenAI...");
@@ -614,4 +636,169 @@ async function handleGoalDeleteCallback(
   }
   await handleGoalDelete(env, chatId, userId, callbackQueryId);
   return new Response("OK");
+}
+
+async function handleOwnerAdminMenu(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: RU.btn_admin_day_status, callback_data: "owner_day_status" }],
+      [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+    ],
+  };
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_menu_title, {
+    reply_markup: keyboard,
+  });
+}
+
+async function handleOwnerDayStatus(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const { getAllUsers } = await import("../db/users");
+  const { getUsersWithWeightOnDate } = await import("../db/weights");
+  const { getGoal } = await import("../db/goals");
+  const { getUsersOnVacation } = await import("../db/user-settings");
+  const { getTodayDate } = await import("../utils");
+
+  const today = getTodayDate();
+  const allUsers = await getAllUsers(env.DB);
+  const usersToday = await getUsersWithWeightOnDate(env.DB, today);
+  const todayIds = new Set(usersToday.map(u => u.user_id));
+  const vacationIds = new Set(await getUsersOnVacation(env.DB, today));
+
+  const checkedIn = usersToday.map(u => u.display_name);
+  const notCheckedIn = allUsers
+    .filter(u => !todayIds.has(u.user_id) && !vacationIds.has(u.user_id))
+    .map(u => u.display_name);
+  const onVacation = allUsers
+    .filter(u => vacationIds.has(u.user_id))
+    .map(u => u.display_name);
+
+  const withGoal: string[] = [];
+  for (const user of allUsers) {
+    const goal = await getGoal(env.DB, user.user_id);
+    if (goal) {
+      withGoal.push(user.display_name);
+    }
+  }
+
+  const [, month, day] = today.split("-");
+  const year = today.split("-")[0];
+  const dateStr = `${day}.${month}.${year}`;
+
+  let text = RU.admin_day_status_title(dateStr) + "\n\n";
+
+  text += RU.admin_checked_in(checkedIn.length) + "\n";
+  text += checkedIn.length > 0 ? checkedIn.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+  text += "\n\n";
+
+  text += RU.admin_not_checked(notCheckedIn.length) + "\n";
+  text += notCheckedIn.length > 0 ? notCheckedIn.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+  text += "\n\n";
+
+  if (onVacation.length > 0) {
+    text += RU.admin_on_vacation(onVacation.length) + "\n";
+    text += onVacation.map(n => `• ${n}`).join("\n");
+    text += "\n\n";
+  }
+
+  text += RU.admin_with_goal(withGoal.length) + "\n";
+  text += withGoal.length > 0 ? withGoal.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: RU.btn_back, callback_data: "owner_admin_menu" }],
+    ],
+  };
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, { reply_markup: keyboard });
+}
+
+async function handleOwnerReportMenu(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: RU.btn_report_daily, callback_data: "owner_report_daily" }],
+      [{ text: RU.btn_report_weekly, callback_data: "owner_report_weekly" }],
+      [{ text: RU.btn_report_monthly, callback_data: "owner_report_monthly" }],
+      [{ text: RU.btn_back, callback_data: "owner_admin_menu" }],
+    ],
+  };
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_menu_title, {
+    reply_markup: keyboard,
+  });
+}
+
+const reportCooldowns: Map<string, number> = new Map();
+
+async function handleOwnerReportSend(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+  reportType: "daily" | "weekly" | "monthly"
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const { getSetting } = await import("../db/settings");
+  const publicChatId = await getSetting(env.DB, "public_chat_id");
+
+  if (!publicChatId) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_group_not_set);
+  }
+
+  const cooldownKey = `owner_report_${reportType}`;
+  const now = Date.now();
+  const lastRun = reportCooldowns.get(cooldownKey) || 0;
+
+  if (now - lastRun < 60000) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_cooldown);
+  }
+
+  reportCooldowns.set(cooldownKey, now);
+
+  const { generateDailyReport, generateWeeklyReport, generateMonthlyReport } = await import("./reports");
+
+  try {
+    if (reportType === "daily") {
+      await generateDailyReport(env);
+    } else if (reportType === "weekly") {
+      await generateWeeklyReport(env);
+    } else if (reportType === "monthly") {
+      await generateMonthlyReport(env);
+    }
+
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_sent(reportType));
+  } catch (error) {
+    reportCooldowns.delete(cooldownKey);
+    throw error;
+  }
 }

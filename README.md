@@ -406,6 +406,36 @@ npx wrangler d1 execute telegram-bot-db --file backup-YYYY-MM-DD.sql
 
 Note: This will overwrite existing data. Make a fresh backup before restoring.
 
+## Owner Admin Menu
+
+The bot provides a private admin panel accessible only to the owner via the **🛠 Админ** button in the main menu. This button appears only in private chat and only for the owner.
+
+### Admin Submenu
+
+| Button | Description |
+|--------|-------------|
+| 📋 Статус дня | Shows today's participation status: who checked in, who didn't, who's on vacation, and who has a goal set. **No weight values or numeric metrics are shown.** |
+| 📣 Отправить отчёт | Opens report type selection menu |
+
+### Report Submenu
+
+| Button | Description |
+|--------|-------------|
+| 📊 Daily | Send daily report to group immediately |
+| 📅 Weekly | Send weekly report to group immediately |
+| 🗓 Monthly | Send monthly report to group immediately |
+
+### Privacy Guarantees
+
+- Admin status view shows **only names and counts**, never weight values
+- Goal presence is shown (yes/no), but not target weights
+- Vacation status is shown when applicable
+- All information visible to admin contains **zero numeric weight data**
+
+### Spam Protection
+
+Each report type has a 60-second cooldown to prevent accidental spam.
+
 ## Troubleshooting
 
 ### If bot stops working

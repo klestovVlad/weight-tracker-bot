@@ -103,14 +103,9 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
   if (isOwnerUser) {
     if (isGroup) {
       keyboard.push([{ text: RU.btn_setgroup, callback_data: "owner_setgroup_here" }]);
+    } else {
+      keyboard.push([{ text: RU.btn_admin, callback_data: "owner_admin_menu" }]);
     }
-    keyboard.push([{ text: RU.btn_status, callback_data: "owner_status" }]);
-    keyboard.push([{ text: RU.btn_send_report, callback_data: "send_report" }]);
-    keyboard.push([
-      { text: RU.btn_debug_daily, callback_data: "debug_daily" },
-      { text: RU.btn_debug_weekly, callback_data: "debug_weekly" },
-      { text: RU.btn_debug_openai, callback_data: "debug_openai" }
-    ]);
   }
 
   return { inline_keyboard: keyboard };
