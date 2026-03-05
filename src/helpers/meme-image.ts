@@ -32,31 +32,33 @@ export async function getMemeImageUrl(
 
   const sumStr = sumKg >= 0 ? `+${sumKg}` : String(sumKg);
 
-  const prompt = `Telegram sticker.
-Transparent background.
-Single cute cartoon animal mascot.
-Centered composition.
+  const prompt = `Telegram sticker, PNG.
+Transparent background ONLY around the character and empty areas. The text area must be fully opaque (no transparency).
+
+Single cute cartoon animal mascot, centered.
+Big readable silhouette, sticker-pack look.
 
 Style:
 telegram sticker pack
-thick black outline
-flat colors
-minimal details
-clean shapes
+very thick smooth black outer outline
+thinner inner lines (if any)
+flat solid colors
+minimal details, clean shapes
+high contrast, crisp edges
 
 Character:
-happy meme animal celebrating victory.
+happy meme animal celebrating victory, dynamic pose (jumping or arms/paws up "YES!").
+Big smile, joyful eyes, one cute exaggerated expression detail (wink OR blush cheeks).
+No props, no extra objects, no logos, no watermark.
 
-Add one short Russian text line:
-
+Text:
+One short Russian line:
 "КОМАНДА ${sumStr} КГ"
+Large bold uppercase, impact-like, slightly condensed.
+Text sits on a solid opaque rounded rectangle bar (white or bright solid color) with thick outline.
+Place the bar at the bottom, centered, not covering the face.
 
-Large bold text.
-
-No background.
-No extra objects.
-No logos.
-No watermark.`;
+Only the character and empty areas may be transparent.`;
 
   const body: Record<string, unknown> = {
     model: "gpt-image-1.5", // latest, best quality; alternatives: gpt-image-1, gpt-image-1-mini
@@ -110,7 +112,9 @@ No watermark.`;
       logError("OpenAI image request timed out");
       const timeoutSec = Math.round(TIMEOUT_MS / 1000);
       return returnError
-        ? { error: `Таймаут (${timeoutSec} с). Сервер не успел сгенерировать изображение.` }
+        ? {
+            error: `Таймаут (${timeoutSec} с). Сервер не успел сгенерировать изображение.`,
+          }
         : null;
     }
     const message = error instanceof Error ? error.message : String(error);

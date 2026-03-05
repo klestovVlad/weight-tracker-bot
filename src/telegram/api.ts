@@ -138,6 +138,7 @@ export async function sendPhoto(
 /** Sticker: HTTP URL to .WEBP (Telegram fetches) or base64 PNG (converted to WEBP 512×512 for Telegram). */
 export type StickerInput = string | { b64: string };
 
+/** Telegram requires static stickers to have one dimension equal to 512px. Not configurable by API. */
 const STICKER_SIZE = 512;
 
 function pngB64ToWebp512(b64: string): Uint8Array {
