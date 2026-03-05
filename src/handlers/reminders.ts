@@ -1,12 +1,13 @@
 import { Env } from "../types";
 import { sendMessage } from "../telegram/api";
-import { getTodayDate } from "../utils";
+import { getTodayDate, isSunday, getStartOfWeek } from "../utils";
 import { getAllUsers } from "../db/users";
-import { getWeightForDate } from "../db/weights";
-import { isOnVacation } from "../db/user-settings";
+import { getWeightForDate, countUserEntriesInRange } from "../db/weights";
+import { isOnVacation, getWeighFrequency } from "../db/user-settings";
 import { logError } from "../helpers/logging";
 
-const REMINDER_TEXT = "⏰ Напоминалка: отметь вес 🙂\nМожно просто числом, например: 87.4";
+const REMINDER_TEXT_DAILY = "⏰ Напоминалка: отметь вес 🙂\nМожно просто числом, например: 87.4";
+const REMINDER_TEXT_WEEKLY = "⏰ Недельная напоминалка: отметь вес за неделю 🙂\nМожно просто числом, например: 87.4";
 
 export interface ReminderStats {
   sent: number;
@@ -53,10 +54,30 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
         continue;
       }
 
-      const weightToday = await getWeightForDate(env.DB, user.user_id, today);
-      if (weightToday) {
-        stats.skipped++;
-        continue;
+      const frequency = await getWeighFrequency(env.DB, user.user_id);
+
+      if (frequency === "weekly") {
+        if (!isSunday(today)) {
+          stats.skipped++;
+          continue;
+        }
+        const startOfWeek = getStartOfWeek(today);
+        const entriesThisWeek = await countUserEntriesInRange(
+          env.DB,
+          user.user_id,
+          startOfWeek,
+          today
+        );
+        if (entriesThisWeek > 0) {
+          stats.skipped++;
+          continue;
+        }
+      } else {
+        const weightToday = await getWeightForDate(env.DB, user.user_id, today);
+        if (weightToday) {
+          stats.skipped++;
+          continue;
+        }
       }
 
       const alreadySent = await wasReminderSent(env.DB, user.user_id, today);
@@ -65,10 +86,11 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
         continue;
       }
 
+      const reminderText = frequency === "weekly" ? REMINDER_TEXT_WEEKLY : REMINDER_TEXT_DAILY;
       const response = await sendMessage(
         env.TELEGRAM_BOT_TOKEN,
         user.user_id,
-        REMINDER_TEXT,
+        reminderText,
         {
           reply_markup: {
             inline_keyboard: [

@@ -29,6 +29,7 @@ export const RU = {
   btn_help: "ℹ️ Как пользоваться",
   btn_chart: "📊 График",
   btn_vacation: "🌴 Отпуск",
+  btn_frequency: "📅 Частота взвешивания",
   btn_leaderboard: "🏆 Лидерборд",
   btn_achievements: "🏅 Мои ачивки",
   btn_back: "⬅️ Назад",
@@ -76,6 +77,13 @@ export const RU = {
     `Ок 🙂 Поставила паузу до ${date}. Напоминалки приходить не будут.`,
   vacation_off: "Пауза снята ✅",
   vacation_returned: "Похоже, ты вернулся 🙂 Пауза снята.",
+
+  // Weigh-in frequency
+  frequency_pick: "📅 Как часто напоминать о взвешивании?",
+  frequency_daily: "Ежедневно",
+  frequency_weekly: "Еженедельно (воскресенье)",
+  frequency_set_daily: "Ок 🙂 Напоминалки будут каждый день. Ты участвуешь в дневном отчёте.",
+  frequency_set_weekly: "Ок 🙂 Напоминалка раз в неделю (воскресенье). В дневном отчёте не участвуешь.",
 
   // Leaderboard
   leaderboard_pick: "🏆 Какой лидерборд показать?",

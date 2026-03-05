@@ -23,7 +23,7 @@ import {
   getLastWeight,
   getUserStreak,
 } from "../db/weights";
-import { getUsersOnVacation } from "../db/user-settings";
+import { getUsersOnVacation, getUsersWithDailyFrequency } from "../db/user-settings";
 import { getAllUsers } from "../db/users";
 import { getGoal, computeGoalProgress } from "../db/goals";
 import { formatGoalSnippet } from "./goal";
@@ -83,7 +83,11 @@ export async function generateDailyReport(env: Env): Promise<void> {
   }
 
   const today = getTodayDate();
-  const usersToday = await getUsersWithWeightOnDate(env.DB, today);
+  const dailyUserIds = new Set(
+    (await getUsersWithDailyFrequency(env.DB)).map((u) => u.user_id)
+  );
+  const allWithWeightToday = await getUsersWithWeightOnDate(env.DB, today);
+  const usersToday = allWithWeightToday.filter((u) => dailyUserIds.has(u.user_id));
 
   if (usersToday.length === 0) {
     await sendMessage(
@@ -190,10 +194,10 @@ export async function generateDailyReport(env: Env): Promise<void> {
     }
   }
 
-  const allUsers = await getAllUsers(env.DB);
+  const dailyUsers = await getUsersWithDailyFrequency(env.DB);
   const submittedIds = new Set(usersToday.map((u) => u.user_id));
   const vacationUserIds = new Set(await getUsersOnVacation(env.DB, today));
-  const missingUsers = allUsers.filter(
+  const missingUsers = dailyUsers.filter(
     (u) => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id),
   );
   const missing = missingUsers.map((u) => u.display_name);

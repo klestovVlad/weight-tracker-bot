@@ -2,18 +2,25 @@ import { Env, TelegramCallbackQuery, InlineKeyboardMarkup } from "../types";
 import { sendMessage, answerCallbackQuery } from "../telegram/api";
 import { isOwner, createMainMenu } from "../utils";
 import { RU, formatDeltaRu } from "../i18n";
-import { getLastWeightByUpdatedAt, getPreviousWeight, getWeightHistory } from "../db/weights";
+import {
+  getLastWeightByUpdatedAt,
+  getPreviousWeight,
+  getWeightHistory,
+} from "../db/weights";
 import { upsertPendingAction } from "../db/pending-actions";
 import { getSetting, setSetting } from "../db/settings";
 import { handleChart, getSmartDefaultPeriod } from "./chart";
 import { handleSetVacation, handleClearVacation } from "./vacation";
-import { handleLeaderboardWeekDelta, handleLeaderboardCheckins } from "./leaderboard";
+import {
+  handleLeaderboardWeekDelta,
+  handleLeaderboardCheckins,
+} from "./leaderboard";
 import { handleGoalMenu, handleGoalSetStart, handleGoalDelete } from "./goal";
 import { handleMyAchievements } from "./achievements";
 
 export async function handleCallbackQuery(
   env: Env,
-  callbackQuery: TelegramCallbackQuery
+  callbackQuery: TelegramCallbackQuery,
 ): Promise<Response> {
   const userId = callbackQuery.from.id;
   const data = callbackQuery.data;
@@ -95,7 +102,11 @@ export async function handleCallbackQuery(
       return handleLeaderboardMenu(env, message.chat.id, isPrivate);
 
     case "leaderboard_week_delta":
-      return handleLeaderboardWeekDeltaCallback(env, message.chat.id, isPrivate);
+      return handleLeaderboardWeekDeltaCallback(
+        env,
+        message.chat.id,
+        isPrivate,
+      );
     case "leaderboard_checkins":
       return handleLeaderboardCheckinsCallback(env, message.chat.id, isPrivate);
 
@@ -103,12 +114,31 @@ export async function handleCallbackQuery(
       return handleMyAchievements(env, message.chat.id, userId);
 
     case "menu_goal":
-      return handleGoalMenuCallback(env, message.chat.id, userId, message.message_id, callbackQuery.id, isPrivate);
+      return handleGoalMenuCallback(
+        env,
+        message.chat.id,
+        userId,
+        message.message_id,
+        callbackQuery.id,
+        isPrivate,
+      );
     case "goal_set":
     case "goal_edit":
-      return handleGoalSetCallback(env, message.chat.id, userId, callbackQuery.id, isPrivate);
+      return handleGoalSetCallback(
+        env,
+        message.chat.id,
+        userId,
+        callbackQuery.id,
+        isPrivate,
+      );
     case "goal_delete":
-      return handleGoalDeleteCallback(env, message.chat.id, userId, callbackQuery.id, isPrivate);
+      return handleGoalDeleteCallback(
+        env,
+        message.chat.id,
+        userId,
+        callbackQuery.id,
+        isPrivate,
+      );
 
     case "menu_back_main":
       return handleShowMenu(env, message.chat.id, isOwnerUser, !isPrivate);
@@ -126,19 +156,48 @@ export async function handleCallbackQuery(
       return handleOwnerDayStatus(env, message.chat.id, isOwnerUser, isPrivate);
 
     case "owner_send_report_menu":
-      return handleOwnerReportMenu(env, message.chat.id, isOwnerUser, isPrivate);
+      return handleOwnerReportMenu(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+      );
 
     case "owner_report_daily":
-      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "daily");
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "daily",
+      );
 
     case "owner_report_weekly":
-      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "weekly");
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "weekly",
+      );
 
     case "owner_report_monthly":
-      return handleOwnerReportSend(env, message.chat.id, isOwnerUser, isPrivate, "monthly");
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "monthly",
+      );
 
     case "owner_debug_meme":
-      return handleOwnerDebugMeme(env, message.chat.id, userId, isOwnerUser, isPrivate);
+      return handleOwnerDebugMeme(
+        env,
+        message.chat.id,
+        userId,
+        isOwnerUser,
+        isPrivate,
+      );
 
     default:
       return new Response("OK");
@@ -149,7 +208,7 @@ async function handleEnterWeight(
   env: Env,
   chatId: number,
   userId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -164,7 +223,7 @@ async function handleEditLast(
   env: Env,
   chatId: number,
   userId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -181,7 +240,7 @@ async function handleEditLast(
   return sendMessage(
     env.TELEGRAM_BOT_TOKEN,
     chatId,
-    RU.ask_edit_weight(lastRecord.date, lastRecord.weight_kg.toFixed(1))
+    RU.ask_edit_weight(lastRecord.date, lastRecord.weight_kg.toFixed(1)),
   );
 }
 
@@ -190,7 +249,7 @@ async function handleHistoryCallback(
   chatId: number,
   userId: number,
   isPrivate: boolean,
-  limit: number
+  limit: number,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -202,19 +261,25 @@ async function handleHistoryCallback(
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.history_empty);
   }
 
-  const { computeProgressStats, formatDateRu } = await import("../helpers/stats");
+  const { computeProgressStats, formatDateRu } =
+    await import("../helpers/stats");
   const stats = computeProgressStats(records, limit);
 
   const lines: string[] = [];
 
-  const header = stats.trendEmoji 
+  const header = stats.trendEmoji
     ? `${stats.trendEmoji} ${RU.progress_header(limit)}`
     : RU.progress_header(limit);
   lines.push(header);
 
   if (stats.lastRecord) {
     const dateFormatted = formatDateRu(stats.lastRecord.date);
-    lines.push(RU.progress_last_entry(dateFormatted, stats.lastRecord.weight_kg.toFixed(1)));
+    lines.push(
+      RU.progress_last_entry(
+        dateFormatted,
+        stats.lastRecord.weight_kg.toFixed(1),
+      ),
+    );
   }
 
   if (stats.dayDelta !== null) {
@@ -233,7 +298,12 @@ async function handleHistoryCallback(
   }
 
   if (stats.minWeight !== null && stats.maxWeight !== null) {
-    lines.push(RU.progress_min_max(stats.minWeight.toFixed(1), stats.maxWeight.toFixed(1)));
+    lines.push(
+      RU.progress_min_max(
+        stats.minWeight.toFixed(1),
+        stats.maxWeight.toFixed(1),
+      ),
+    );
   }
 
   if (stats.recentEntries.length > 0) {
@@ -251,7 +321,7 @@ async function handleHistoryCallback(
 async function handleOwnerStatus(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -270,7 +340,7 @@ async function handleOwnerSetGroup(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -289,17 +359,17 @@ async function handleShowMenu(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
-  isGroup: boolean
+  isGroup: boolean,
 ): Promise<Response> {
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.welcome, {
-    reply_markup: createMainMenu(isOwnerUser, isGroup)
+    reply_markup: createMainMenu(isOwnerUser, isGroup),
   });
 }
 
 async function handleDebugDaily(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -308,13 +378,17 @@ async function handleDebugDaily(
   const { generateDailyReport } = await import("./reports");
   await generateDailyReport(env);
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🔧 Ежедневный отчёт отправлен.");
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    "🔧 Ежедневный отчёт отправлен.",
+  );
 }
 
 async function handleDebugWeekly(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -323,13 +397,17 @@ async function handleDebugWeekly(
   const { generateWeeklyReport } = await import("./reports");
   await generateWeeklyReport(env);
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🔧 Еженедельный отчёт отправлен.");
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    "🔧 Еженедельный отчёт отправлен.",
+  );
 }
 
 async function handleDebugOpenai(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -339,7 +417,7 @@ async function handleDebugOpenai(
     return sendMessage(
       env.TELEGRAM_BOT_TOKEN,
       chatId,
-      "❌ OPENAI_API_KEY не настроен."
+      "❌ OPENAI_API_KEY не настроен.",
     );
   }
 
@@ -387,7 +465,7 @@ Model: ${env.OPENAI_MODEL || "gpt-4o-mini"}`;
 async function handleSendReport(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -398,11 +476,15 @@ async function handleSendReport(
     return sendMessage(
       env.TELEGRAM_BOT_TOKEN,
       chatId,
-      "❌ Группа не привязана. Используй /setgroup в группе."
+      "❌ Группа не привязана. Используй /setgroup в группе.",
     );
   }
 
-  await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "📤 Отправляю отчёт в группу...");
+  await sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    "📤 Отправляю отчёт в группу...",
+  );
 
   const { generateDailyReport } = await import("./reports");
   await generateDailyReport(env);
@@ -410,10 +492,7 @@ async function handleSendReport(
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "✅ Отчёт отправлен!");
 }
 
-async function handleHelp(
-  env: Env,
-  chatId: number
-): Promise<Response> {
+async function handleHelp(env: Env, chatId: number): Promise<Response> {
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.help_message);
 }
 
@@ -422,17 +501,17 @@ function createChartPicker(): InlineKeyboardMarkup {
     inline_keyboard: [
       [
         { text: "7 дней", callback_data: "menu_chart_7" },
-        { text: "30 дней", callback_data: "menu_chart_30" }
+        { text: "30 дней", callback_data: "menu_chart_30" },
       ],
       [
         { text: "90 дней", callback_data: "menu_chart_90" },
-        { text: "180 дней", callback_data: "menu_chart_180" }
+        { text: "180 дней", callback_data: "menu_chart_180" },
       ],
       [
         { text: "С начала", callback_data: "menu_chart_all" },
-        { text: RU.btn_back, callback_data: "menu_back_main" }
-      ]
-    ]
+        { text: RU.btn_back, callback_data: "menu_back_main" },
+      ],
+    ],
   };
 }
 
@@ -440,7 +519,7 @@ async function handleChartMenu(
   env: Env,
   chatId: number,
   userId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -448,11 +527,11 @@ async function handleChartMenu(
 
   const records = await getWeightHistory(env.DB, userId, 1000);
   const smartPeriod = getSmartDefaultPeriod(records.length);
-  
+
   await handleChart(env, chatId, userId, smartPeriod);
-  
+
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.chart_pick_period, {
-    reply_markup: createChartPicker()
+    reply_markup: createChartPicker(),
   });
 }
 
@@ -461,7 +540,7 @@ async function handleChartPeriod(
   chatId: number,
   userId: number,
   isPrivate: boolean,
-  period: number | "all"
+  period: number | "all",
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -475,28 +554,28 @@ function createVacationPicker(): InlineKeyboardMarkup {
     inline_keyboard: [
       [
         { text: "7 дней", callback_data: "vacation_7" },
-        { text: "14 дней", callback_data: "vacation_14" }
+        { text: "14 дней", callback_data: "vacation_14" },
       ],
       [
         { text: "30 дней", callback_data: "vacation_30" },
-        { text: "Снять паузу", callback_data: "vacation_off" }
+        { text: "Снять паузу", callback_data: "vacation_off" },
       ],
-      [{ text: RU.btn_back, callback_data: "menu_back_main" }]
-    ]
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+    ],
   };
 }
 
 async function handleVacationMenu(
   env: Env,
   chatId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.vacation_pick, {
-    reply_markup: createVacationPicker()
+    reply_markup: createVacationPicker(),
   });
 }
 
@@ -505,7 +584,7 @@ async function handleVacationSet(
   chatId: number,
   userId: number,
   isPrivate: boolean,
-  days: number
+  days: number,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -518,7 +597,7 @@ async function handleVacationOff(
   env: Env,
   chatId: number,
   userId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -531,30 +610,35 @@ function createLeaderboardPicker(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [{ text: "За неделю (Δ)", callback_data: "leaderboard_week_delta" }],
-      [{ text: "Регулярность (7 дней)", callback_data: "leaderboard_checkins" }],
-      [{ text: RU.btn_back, callback_data: "menu_back_main" }]
-    ]
+      [
+        {
+          text: "Регулярность (7 дней)",
+          callback_data: "leaderboard_checkins",
+        },
+      ],
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+    ],
   };
 }
 
 async function handleLeaderboardMenu(
   env: Env,
   chatId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.leaderboard_pick, {
-    reply_markup: createLeaderboardPicker()
+    reply_markup: createLeaderboardPicker(),
   });
 }
 
 async function handleLeaderboardWeekDeltaCallback(
   env: Env,
   chatId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -566,7 +650,7 @@ async function handleLeaderboardWeekDeltaCallback(
 async function handleLeaderboardCheckinsCallback(
   env: Env,
   chatId: number,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -578,7 +662,7 @@ async function handleLeaderboardCheckinsCallback(
 async function handleAdminResetConfirm(
   env: Env,
   chatId: number,
-  isOwnerUser: boolean
+  isOwnerUser: boolean,
 ): Promise<Response> {
   if (!isOwnerUser) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.owner_only);
@@ -597,7 +681,7 @@ async function handleAdminResetConfirm(
 
 async function handleAdminResetCancel(
   env: Env,
-  chatId: number
+  chatId: number,
 ): Promise<Response> {
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.reset_cancelled);
 }
@@ -608,7 +692,7 @@ async function handleGoalMenuCallback(
   userId: number,
   messageId: number,
   callbackQueryId: string,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -622,7 +706,7 @@ async function handleGoalSetCallback(
   chatId: number,
   userId: number,
   callbackQueryId: string,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -636,7 +720,7 @@ async function handleGoalDeleteCallback(
   chatId: number,
   userId: number,
   callbackQueryId: string,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isPrivate) {
     return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
@@ -649,7 +733,7 @@ async function handleOwnerAdminMenu(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");
@@ -658,7 +742,12 @@ async function handleOwnerAdminMenu(
   const keyboard = {
     inline_keyboard: [
       [{ text: RU.btn_admin_day_status, callback_data: "owner_day_status" }],
-      [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
+      [
+        {
+          text: RU.btn_admin_send_report,
+          callback_data: "owner_send_report_menu",
+        },
+      ],
       [{ text: RU.btn_admin_debug_meme, callback_data: "owner_debug_meme" }],
       [{ text: RU.btn_back, callback_data: "menu_back_main" }],
     ],
@@ -673,7 +762,7 @@ async function handleOwnerDayStatus(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");
@@ -688,16 +777,16 @@ async function handleOwnerDayStatus(
   const today = getTodayDate();
   const allUsers = await getAllUsers(env.DB);
   const usersToday = await getUsersWithWeightOnDate(env.DB, today);
-  const todayIds = new Set(usersToday.map(u => u.user_id));
+  const todayIds = new Set(usersToday.map((u) => u.user_id));
   const vacationIds = new Set(await getUsersOnVacation(env.DB, today));
 
-  const checkedIn = usersToday.map(u => u.display_name);
+  const checkedIn = usersToday.map((u) => u.display_name);
   const notCheckedIn = allUsers
-    .filter(u => !todayIds.has(u.user_id) && !vacationIds.has(u.user_id))
-    .map(u => u.display_name);
+    .filter((u) => !todayIds.has(u.user_id) && !vacationIds.has(u.user_id))
+    .map((u) => u.display_name);
   const onVacation = allUsers
-    .filter(u => vacationIds.has(u.user_id))
-    .map(u => u.display_name);
+    .filter((u) => vacationIds.has(u.user_id))
+    .map((u) => u.display_name);
 
   const withGoal: string[] = [];
   for (const user of allUsers) {
@@ -714,21 +803,30 @@ async function handleOwnerDayStatus(
   let text = RU.admin_day_status_title(dateStr) + "\n\n";
 
   text += RU.admin_checked_in(checkedIn.length) + "\n";
-  text += checkedIn.length > 0 ? checkedIn.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+  text +=
+    checkedIn.length > 0
+      ? checkedIn.map((n) => `• ${n}`).join("\n")
+      : RU.admin_nobody;
   text += "\n\n";
 
   text += RU.admin_not_checked(notCheckedIn.length) + "\n";
-  text += notCheckedIn.length > 0 ? notCheckedIn.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+  text +=
+    notCheckedIn.length > 0
+      ? notCheckedIn.map((n) => `• ${n}`).join("\n")
+      : RU.admin_nobody;
   text += "\n\n";
 
   if (onVacation.length > 0) {
     text += RU.admin_on_vacation(onVacation.length) + "\n";
-    text += onVacation.map(n => `• ${n}`).join("\n");
+    text += onVacation.map((n) => `• ${n}`).join("\n");
     text += "\n\n";
   }
 
   text += RU.admin_with_goal(withGoal.length) + "\n";
-  text += withGoal.length > 0 ? withGoal.map(n => `• ${n}`).join("\n") : RU.admin_nobody;
+  text +=
+    withGoal.length > 0
+      ? withGoal.map((n) => `• ${n}`).join("\n")
+      : RU.admin_nobody;
 
   const keyboard = {
     inline_keyboard: [
@@ -736,14 +834,16 @@ async function handleOwnerDayStatus(
     ],
   };
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, { reply_markup: keyboard });
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, {
+    reply_markup: keyboard,
+  });
 }
 
 async function handleOwnerReportMenu(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");
@@ -758,9 +858,14 @@ async function handleOwnerReportMenu(
     ],
   };
 
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_menu_title, {
-    reply_markup: keyboard,
-  });
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    RU.admin_report_menu_title,
+    {
+      reply_markup: keyboard,
+    },
+  );
 }
 
 const reportCooldowns: Map<string, number> = new Map();
@@ -770,7 +875,7 @@ async function handleOwnerReportSend(
   chatId: number,
   isOwnerUser: boolean,
   isPrivate: boolean,
-  reportType: "daily" | "weekly" | "monthly"
+  reportType: "daily" | "weekly" | "monthly",
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");
@@ -788,12 +893,17 @@ async function handleOwnerReportSend(
   const lastRun = reportCooldowns.get(cooldownKey) || 0;
 
   if (now - lastRun < 60000) {
-    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_cooldown);
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      chatId,
+      RU.admin_report_cooldown,
+    );
   }
 
   reportCooldowns.set(cooldownKey, now);
 
-  const { generateDailyReport, generateWeeklyReport, generateMonthlyReport } = await import("./reports");
+  const { generateDailyReport, generateWeeklyReport, generateMonthlyReport } =
+    await import("./reports");
 
   try {
     if (reportType === "daily") {
@@ -804,7 +914,11 @@ async function handleOwnerReportSend(
       await generateMonthlyReport(env);
     }
 
-    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_report_sent(reportType));
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      chatId,
+      RU.admin_report_sent(reportType),
+    );
   } catch (error) {
     reportCooldowns.delete(cooldownKey);
     throw error;
@@ -816,7 +930,7 @@ async function handleOwnerDebugMeme(
   chatId: number,
   userId: number,
   isOwnerUser: boolean,
-  isPrivate: boolean
+  isPrivate: boolean,
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");

@@ -32,6 +32,25 @@ export function getPreviousDay(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Day of week for date string (YYYY-MM-DD). 0 = Sunday, 1 = Monday, ... 6 = Saturday. */
+export function getDayOfWeek(dateStr: string): number {
+  const d = new Date(dateStr + "T12:00:00.000Z");
+  return d.getUTCDay();
+}
+
+export function isSunday(dateStr: string): boolean {
+  return getDayOfWeek(dateStr) === 0;
+}
+
+/** Monday of the week containing the given date (YYYY-MM-DD). Week is Mon–Sun. */
+export function getStartOfWeek(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00.000Z");
+  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ...
+  const daysToMonday = day === 0 ? 6 : day - 1;
+  d.setUTCDate(d.getUTCDate() - daysToMonday);
+  return d.toISOString().slice(0, 10);
+}
+
 export const STREAK_LEVELS: Array<{ days: number; icon: string }> = [
   { days: 3, icon: "🔹" },
   { days: 7, icon: "🔸" },
@@ -129,9 +148,10 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_goal, callback_data: "menu_goal" }
     ]);
     keyboard.push([
-      { text: RU.btn_vacation, callback_data: "menu_vacation" },
-      { text: RU.btn_help, callback_data: "menu_help" }
+      { text: RU.btn_frequency, callback_data: "menu_frequency" },
+      { text: RU.btn_vacation, callback_data: "menu_vacation" }
     ]);
+    keyboard.push([{ text: RU.btn_help, callback_data: "menu_help" }]);
     keyboard.push([{ text: RU.btn_achievements, callback_data: "menu_my_achievements" }]);
   }
 
