@@ -164,38 +164,87 @@ export async function handleCallbackQuery(
       return handleOwnerDayStatus(env, message.chat.id, isOwnerUser, isPrivate);
 
     case "owner_send_report_menu":
-      return handleOwnerReportMenu(
+      return handleOwnerReportDestMenu(
         env,
         message.chat.id,
         isOwnerUser,
         isPrivate,
       );
 
-    case "owner_report_daily":
+    case "owner_report_dest_group":
+      return handleOwnerReportMenuGroup(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+      );
+
+    case "owner_report_dest_chat":
+      return handleOwnerReportMenuChat(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+      );
+
+    case "owner_report_daily_group":
       return handleOwnerReportSend(
         env,
         message.chat.id,
         isOwnerUser,
         isPrivate,
         "daily",
+        "group",
       );
 
-    case "owner_report_weekly":
+    case "owner_report_weekly_group":
       return handleOwnerReportSend(
         env,
         message.chat.id,
         isOwnerUser,
         isPrivate,
         "weekly",
+        "group",
       );
 
-    case "owner_report_monthly":
+    case "owner_report_monthly_group":
       return handleOwnerReportSend(
         env,
         message.chat.id,
         isOwnerUser,
         isPrivate,
         "monthly",
+        "group",
+      );
+
+    case "owner_report_daily_chat":
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "daily",
+        "chat",
+      );
+
+    case "owner_report_weekly_chat":
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "weekly",
+        "chat",
+      );
+
+    case "owner_report_monthly_chat":
+      return handleOwnerReportSend(
+        env,
+        message.chat.id,
+        isOwnerUser,
+        isPrivate,
+        "monthly",
+        "chat",
       );
 
     case "owner_debug_meme":
@@ -435,7 +484,7 @@ async function handleDebugOpenai(
     date: "28.02.2026",
     kind: "daily" as const,
     submitted: [
-      { name: "Алексей", dayDelta: -0.5, totalDelta: -3.2 },
+      { name: "Алексей", dayDelta: -0.5, totalDelta: -3.2, goalRemaining: 2.1, goalPercent: 65, goalReached: false },
       { name: "Мария", dayDelta: 0.2, totalDelta: -1.8 },
       { name: "Иван", dayDelta: null, totalDelta: null },
     ],
@@ -447,6 +496,8 @@ async function handleDebugOpenai(
     firstEntryNames: ["Иван"],
     countSubmitted: 3,
     countMissing: 2,
+    leader: { name: "Алексей", dayDelta: -0.5 },
+    goalsInfo: [{ name: "Алексей", remaining: 2.1, percent: 65, reached: false }],
   };
 
   await sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, "🤖 Запрос в OpenAI...");
@@ -456,11 +507,8 @@ async function handleDebugOpenai(
 
     const response = `🤖 OpenAI ответ:
 
-Intro:
-${result.intro || "(пусто)"}
-
-Outro:
-${result.outro || "(пусто)"}
+Message:
+${result.message || "(пусто)"}
 
 Model: ${env.OPENAI_MODEL || "gpt-4o-mini"}`;
 
@@ -888,7 +936,7 @@ async function handleOwnerDayStatus(
   });
 }
 
-async function handleOwnerReportMenu(
+async function handleOwnerReportDestMenu(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
@@ -900,9 +948,10 @@ async function handleOwnerReportMenu(
 
   const keyboard = {
     inline_keyboard: [
-      [{ text: RU.btn_report_daily, callback_data: "owner_report_daily" }],
-      [{ text: RU.btn_report_weekly, callback_data: "owner_report_weekly" }],
-      [{ text: RU.btn_report_monthly, callback_data: "owner_report_monthly" }],
+      [
+        { text: RU.btn_report_dest_group, callback_data: "owner_report_dest_group" },
+        { text: RU.btn_report_dest_chat, callback_data: "owner_report_dest_chat" },
+      ],
       [{ text: RU.btn_back, callback_data: "owner_admin_menu" }],
     ],
   };
@@ -910,10 +959,62 @@ async function handleOwnerReportMenu(
   return sendMessage(
     env.TELEGRAM_BOT_TOKEN,
     chatId,
+    RU.admin_report_dest_title,
+    { reply_markup: keyboard },
+  );
+}
+
+async function handleOwnerReportMenuGroup(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: RU.btn_report_daily, callback_data: "owner_report_daily_group" }],
+      [{ text: RU.btn_report_weekly, callback_data: "owner_report_weekly_group" }],
+      [{ text: RU.btn_report_monthly, callback_data: "owner_report_monthly_group" }],
+      [{ text: RU.btn_back, callback_data: "owner_send_report_menu" }],
+    ],
+  };
+
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
     RU.admin_report_menu_title,
-    {
-      reply_markup: keyboard,
-    },
+    { reply_markup: keyboard },
+  );
+}
+
+async function handleOwnerReportMenuChat(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isOwnerUser || !isPrivate) {
+    return new Response("OK");
+  }
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: RU.btn_report_daily, callback_data: "owner_report_daily_chat" }],
+      [{ text: RU.btn_report_weekly, callback_data: "owner_report_weekly_chat" }],
+      [{ text: RU.btn_report_monthly, callback_data: "owner_report_monthly_chat" }],
+      [{ text: RU.btn_back, callback_data: "owner_send_report_menu" }],
+    ],
+  };
+
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    RU.admin_report_menu_title,
+    { reply_markup: keyboard },
   );
 }
 
@@ -925,19 +1026,22 @@ async function handleOwnerReportSend(
   isOwnerUser: boolean,
   isPrivate: boolean,
   reportType: "daily" | "weekly" | "monthly",
+  destination: "group" | "chat",
 ): Promise<Response> {
   if (!isOwnerUser || !isPrivate) {
     return new Response("OK");
   }
 
   const { getSetting } = await import("../db/settings");
-  const publicChatId = await getSetting(env.DB, "public_chat_id");
 
-  if (!publicChatId) {
-    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_group_not_set);
+  if (destination === "group") {
+    const publicChatId = await getSetting(env.DB, "public_chat_id");
+    if (!publicChatId) {
+      return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_group_not_set);
+    }
   }
 
-  const cooldownKey = `owner_report_${reportType}`;
+  const cooldownKey = `owner_report_${reportType}_${destination}`;
   const now = Date.now();
   const lastRun = reportCooldowns.get(cooldownKey) || 0;
 
@@ -953,21 +1057,23 @@ async function handleOwnerReportSend(
 
   const { generateDailyReport, generateWeeklyReport, generateMonthlyReport } =
     await import("./reports");
+  const overrides =
+    destination === "chat" ? { targetChatId: String(chatId) } : undefined;
 
   try {
     if (reportType === "daily") {
-      await generateDailyReport(env);
+      await generateDailyReport(env, overrides);
     } else if (reportType === "weekly") {
-      await generateWeeklyReport(env);
+      await generateWeeklyReport(env, overrides);
     } else if (reportType === "monthly") {
-      await generateMonthlyReport(env);
+      await generateMonthlyReport(env, overrides);
     }
 
-    return sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      chatId,
-      RU.admin_report_sent(reportType),
-    );
+    const sentText =
+      destination === "chat"
+        ? RU.admin_report_sent_chat(reportType)
+        : RU.admin_report_sent(reportType);
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, sentText);
   } catch (error) {
     reportCooldowns.delete(cooldownKey);
     throw error;

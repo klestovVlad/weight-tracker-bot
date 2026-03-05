@@ -13,5 +13,8 @@
     "@cloudflare/workers-types": "^4.20240129.0",
     "typescript": "^5.3.3",
     "wrangler": "^3.28.0"
+  },
+  "dependencies": {
+    "@cf-wasm/photon": "^0.3.4"
   }
 }

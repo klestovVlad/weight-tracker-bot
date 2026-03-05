@@ -1,4 +1,5 @@
 import { SendMessageOptions } from "../types";
+import { PhotonImage, resize, SamplingFilter } from "@cf-wasm/photon/workerd";
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
@@ -127,6 +128,60 @@ export async function sendPhoto(
   form.set("chat_id", String(chatId));
   form.set("photo", blob, "image.png");
   if (caption) form.set("caption", caption);
+
+  return fetchWithRetry(url, {
+    method: "POST",
+    body: form,
+  });
+}
+
+/** Sticker: HTTP URL to .WEBP (Telegram fetches) or base64 PNG (converted to WEBP 512×512 for Telegram). */
+export type StickerInput = string | { b64: string };
+
+const STICKER_SIZE = 512;
+
+function pngB64ToWebp512(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const inputImage = PhotonImage.new_from_byteslice(bytes);
+  try {
+    const outputImage = resize(
+      inputImage,
+      STICKER_SIZE,
+      STICKER_SIZE,
+      SamplingFilter.Lanczos3,
+    );
+    try {
+      return outputImage.get_bytes_webp();
+    } finally {
+      outputImage.free();
+    }
+  } finally {
+    inputImage.free();
+  }
+}
+
+export async function sendSticker(
+  token: string,
+  chatId: number | string,
+  sticker: StickerInput,
+): Promise<Response> {
+  const url = `https://api.telegram.org/bot${token}/sendSticker`;
+
+  if (typeof sticker === "string") {
+    return fetchWithRetry(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, sticker }),
+    });
+  }
+
+  const webpBytes = pngB64ToWebp512(sticker.b64);
+  const blob = new Blob([webpBytes], { type: "image/webp" });
+  const form = new FormData();
+  form.set("chat_id", String(chatId));
+  form.set("sticker", blob, "sticker.webp");
 
   return fetchWithRetry(url, {
     method: "POST",

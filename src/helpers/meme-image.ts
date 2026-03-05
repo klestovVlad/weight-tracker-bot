@@ -8,21 +8,19 @@ export interface GetMemeImageOptions {
   returnError?: boolean;
 }
 
-/** Result when API returns image as base64 (GPT image models return b64_json, not url). */
+/** Result when API returns image as base64; we parse b64_json from the response for stable handling. */
 export interface MemeImageB64 {
   b64: string;
 }
 
 /**
- * Generates a meme-style image for the given object (e.g. "пара зимних сапог").
- * sumKg = team total weight change (e.g. -1.9). Used in the prompt for context.
- * Uses OpenAI Images API (gpt-image-1 returns b64_json; DALL-E 2/3 can return url).
- * Returns URL string, or { b64 } for base64 image, or null on failure.
- * With options.returnError: true, returns { error: string } on failure for debugging.
+ * Generates a Telegram sticker image. Uses OpenAI Images API.
+ * Transparent background, one short Russian line with sumStr.
+ * Returns URL string, or { b64 } for base64, or null on failure.
  */
 export async function getMemeImageUrl(
   env: Env,
-  objectRu: string,
+  _objectRu: string,
   sumKg: number,
   options?: GetMemeImageOptions,
 ): Promise<string | MemeImageB64 | { error: string } | null> {
@@ -32,53 +30,42 @@ export async function getMemeImageUrl(
     return returnError ? { error: "OPENAI_API_KEY не задан" } : null;
   }
 
-  // Short prompt: DALL-E 2 works better without text on image and without sensitive words.
   const sumStr = sumKg >= 0 ? `+${sumKg}` : String(sumKg);
-  const prompt = `
-  Create a FUNNY motivational meme poster for a Telegram weight loss group.
-  
-  LANGUAGE: All visible text must be Russian.
-  
-  LAYOUT:
-  - Bright gradient or neon background.
-  - In the center: a cute or funny illustration of ${objectRu}.
-  - Big bold headline at top:
-    "Команда: ${sumStr} кг за неделю!"
-  - Funny meme caption under it about comparing weight to ${objectRu}.
-    Example tone: playful, absurd but friendly.
-  - Small footer text:
-    "Маленькие шаги — большие минусы 💪"
-  
-  STYLE:
-  - Instagram / Telegram meme style.
-  - Bold sans-serif typography.
-  - Clean modern layout.
-  - High contrast.
-  - Not childish clipart, not photorealistic.
-  - Looks like a shareable social media meme.
-  
-  HUMOR:
-  - Be creative and unexpected.
-  - Jokes about everyday life, food, objects, cats, winter, laziness, motivation.
-  - Friendly humor only, no insults, no body shaming.
-  
-  VARIATION:
-  Each image must look different:
-  - random colors
-  - different composition
-  - different funny caption
-  - different illustration pose
-  
-  RULES:
-  - Only one main object: ${objectRu}.
-  - No people.
-  - No extra random text.
-  - No English text.
-  - No weight numbers except ${sumStr}.
-  
-  QUALITY:
-  High quality illustration, modern poster, balanced composition.
-  `;
+
+  const prompt = `Telegram sticker.
+Transparent background.
+Single cute cartoon animal mascot.
+Centered composition.
+
+Style:
+telegram sticker pack
+thick black outline
+flat colors
+minimal details
+clean shapes
+
+Character:
+happy meme animal celebrating victory.
+
+Add one short Russian text line:
+
+"КОМАНДА ${sumStr} КГ"
+
+Large bold text.
+
+No background.
+No extra objects.
+No logos.
+No watermark.`;
+
+  const body: Record<string, unknown> = {
+    model: "gpt-image-1.5", // latest, best quality; alternatives: gpt-image-1, gpt-image-1-mini
+    prompt: prompt.trim(),
+    n: 1,
+    size: "1024x1024",
+    quality: "high",
+    background: "transparent",
+  };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -92,15 +79,7 @@ export async function getMemeImageUrl(
           "Content-Type": "application/json",
           Authorization: `Bearer ${env.OPENAI_API_KEY}`,
         },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          prompt,
-          size: "1024x1024",
-          // keep cost reasonable; bump to "high" only if you really want
-          quality: "medium",
-          // optional: prefer png if supported by your current response parsing
-          // response_format: "b64_json",
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       },
     );
@@ -108,9 +87,9 @@ export async function getMemeImageUrl(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const body = await response.text();
-      const detail = body
-        ? `${response.status}: ${body}`
+      const bodyText = await response.text();
+      const detail = bodyText
+        ? `${response.status}: ${bodyText}`
         : String(response.status);
       logError(`OpenAI Images API error: ${detail}`);
       return returnError ? { error: detail } : null;

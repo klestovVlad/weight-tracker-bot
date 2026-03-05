@@ -76,11 +76,13 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
           await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_sending);
           const { pickMemeObject } = await import("./helpers/meme");
           const { getMemeImageUrl } = await import("./helpers/meme-image");
-          const { sendPhoto } = await import("./telegram/api");
-          const object = pickMemeObject(delta);
-          const result = await getMemeImageUrl(env, object, delta, { returnError: true });
+          const { sendSticker } = await import("./telegram/api");
+          const objectDisplay = pickMemeObject(delta);
+          const objectForApi = `sticker: ${objectDisplay}`;
+          const result = await getMemeImageUrl(env, objectForApi, delta, { returnError: true });
           if (result != null && (typeof result === "string" || "b64" in result)) {
-            await sendPhoto(env.TELEGRAM_BOT_TOKEN, message.chat.id, result, RU.debug_meme_sent(object));
+            await sendSticker(env.TELEGRAM_BOT_TOKEN, message.chat.id, result);
+            await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_sent(objectDisplay));
           } else {
             const errMsg = result?.error ? `${RU.debug_meme_failed}\n\nДетали: ${result.error}` : RU.debug_meme_failed;
             await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, errMsg);

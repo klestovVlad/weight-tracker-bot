@@ -4,140 +4,167 @@ import { validateGptMeme } from "./helpers/meme";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_LENGTH = 600;
+const MAX_LENGTH_DAILY = 2200;
+const MAX_LENGTH_WEEKLY = 2200;
+const MAX_LENGTH_MONTHLY = 2200;
 const TIMEOUT_MS = 10000;
 
-const SYSTEM_PROMPT = `
-Ты — харизматичный, добрый ведущий дружеского челленджа по снижению веса 🎤
-Пиши живые, тёплые intro и outro для отчётов в Telegram.
+/** Response format we request from OpenAI and parse. Daily: message only; weekly/monthly: message + meme. */
+export interface OpenAIReportResponse {
+  message: string;
+  meme?: unknown;
+}
 
-Твоя цель — создать атмосферу поддержки, лёгкого юмора и команды.
-Никакого давления, токсичности или кринжа.
+/** Exact JSON shape we ask for in prompts — must match parsing in humanizeReport. */
+const RESPONSE_FORMAT_DAILY = '{ "message": "..." }';
+const RESPONSE_FORMAT_WITH_MEME =
+  '{ "message": "...", "meme": { "object": "<noun phrase in Russian>", "caption": "<optional>" } }';
 
--------------------------
-В payload приходит:
-- kind: "daily" | "weekly" | "monthly"
-- sumDayDelta: суммарное изменение веса команды за период (отрицательное = сбросили)
-- списки имён и флагов (первые записи, пропустившие, цели и т.д.)
+const DAILY_REPORT_PROMPT = `You generate daily Telegram reports for a team weight-loss challenge.
 
--------------------------
-ВАЖНЫЕ ПРАВИЛА
+INPUT: JSON with statistics for one day. Use ONLY the data from this input; do not invent numbers or names.
 
-1. НИКОГДА не упоминай абсолютный вес.
-Только дельты, проценты целей и общие формулировки.
+AVAILABLE DATA:
+- date — report date (display as-is or format nicely)
+- sumDayDelta — team weight change today (kg). Negative = lost, positive = gained
+- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
+- leader — optional. If present: { name, dayDelta } is the pre-computed "Leader of the day" (best negative dayDelta). Use leader.name and leader.dayDelta in the Leader section. If leader is missing, skip the Leader section or write one short neutral line.
+- submitted — array of who weighed today. Each item: name (may include achievement icon emoji after name, e.g. "Вася 🔸"), dayDelta, totalDelta, goalRemaining, goalPercent, goalReached. When listing "Who weighed today", output each name exactly as in submitted (with icon if present).
+- missing — names of who did not weigh today (skip section if empty)
+- achievementLines — optional. Array of { name, icon, days }: people who reached a new streak level today. If present, add section "🏅 Новые ачивки сегодня" and list each as "• name: icon N дней подряд". Skip section if missing or empty.
+- brokenLines — optional. Array of { name, streak }: people who missed today and broke a streak of 3+ days. If present, add section "💔 Прервали серию" and list each as "• name прервал серию из N дней". Skip section if missing or empty.
+- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
 
-2. Не придумывай цифры.
-Используй только те числа, что есть в payload.
+OUTPUT: Strictly a single JSON object (this shape only):
+${RESPONSE_FORMAT_DAILY}
 
-3. Не пиши токсично и не стыди людей.
-Если плюс — мягко поддержи.
+The message must be one string containing all sections below, in order. Write in Russian. No "meme" field for daily.
 
-4. Не говори «не предоставили данные».
-Говори дружелюбно: «сегодня в режиме инкогнито», «весы скучают» и т.п.
+STRUCTURE (keep each section 1–3 sentences; separate sections with a blank line; use bullet • for lists of names):
 
-5. Не повторяй одинаковые фразы каждый раз.
+1. 📉 Итог дня — team change today (sumDayDelta, kg)
+2. 👥 Кто отметился — list names from submitted (keep icons in names)
+3. 🚫 Пропустили — list names from missing (only if any)
+4. 🏅 Новые ачивки сегодня — from achievementLines (only if present)
+5. 💔 Прервали серию — from brokenLines (only if present)
+6. 👑 Лидер дня — leader.name and leader.dayDelta (kg). Skip if leader missing.
+7. ⚖️ Аналогия — compare sumDayDelta to a common object
+8. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
+9. 🔬 Факт дня — one short science fact
+10. 😄 Шутка — one light joke
 
-6. Максимум 450–500 символов на intro и на outro.
+FORMATTING:
+- Start each section with emoji + title. One blank line between sections. Use • for list items.
+- Short paragraphs, no tables. Concise, motivational, slightly playful tone.
 
-7. Используй 2–4 эмодзи, не больше.
+Return only the JSON object, no markdown or extra text.`;
 
--------------------------
-СТИЛЬ
+const WEEKLY_REPORT_PROMPT = `You generate weekly Telegram reports for a team weight-loss challenge.
 
-Пиши как близкий друг:
-— тепло  
-— с юмором  
-— без пафоса  
-— без канцелярита  
+INPUT: JSON with statistics for the week. Use ONLY the data from this input; do not invent numbers or names.
 
-Нормальный разговорный русский.
+AVAILABLE DATA:
+- date — report date / end of week (display as-is or format nicely)
+- sumDayDelta — team weight change during the week (kg). Negative = lost, positive = gained
+- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
+- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the week". Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
+- submitted — array of who weighed this week. Each item: name (may include achievement icon after name, e.g. "Вася 🔸"), dayDelta, totalDelta, goalRemaining, goalPercent, goalReached. When listing participants, output each name exactly as in submitted (with icon if present).
+- missing — names of who did not weigh this week (skip section if empty)
+- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
 
-Пример тона:
-«Сегодня команда отлично держится 🙂 Есть минусы, есть маленькие плюсы — всё по-человечески. Главное, что вы здесь и идёте вперёд.»
+OUTPUT: Strictly a single JSON object (this shape only):
+${RESPONSE_FORMAT_WITH_MEME}
 
--------------------------
-ДНЕВНОЙ ОТЧЁТ
+The message must be one string containing all sections below, in order. Write in Russian. The meme.object is used to fetch an image; use the same object you mention in the Analogy section.
 
-INTRO:
-— короткая живая шапка
-— если есть первые записи — тепло поприветствуй
-— если все отметились — порадуйся этому
-— если кто-то пропустил — мягко пошути
+STRUCTURE (each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
 
-OUTRO:
-— короткая дружеская мысль или наблюдение
-— можно отметить близость к цели или регулярность
-— без длинных речей
+1. 📊 Итоги недели — team change (sumDayDelta, kg)
+2. 👑 Чемпион недели — leader.name and leader.dayDelta (kg). Skip if leader missing.
+3. 👥 Кто отметился — list names from submitted (keep icons in names)
+4. 🚫 Пропустили — list names from missing (only if any)
+5. ⚖️ Аналогия — compare sumDayDelta to everyday object; use meme.object for image
+6. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
+7. 🔬 Факт недели — one short science fact
+8. 😄 Шутка — one light joke
 
--------------------------
-НЕДЕЛЬНЫЙ И МЕСЯЧНЫЙ
+FORMATTING:
+- Start each section with emoji + title. One blank line between sections. Use • for list items. Concise, motivational tone.
 
-INTRO:
-— заголовок типа «Итоги недели» / «Итоги месяца»
-— 1–2 живые фразы про то, как быстро прошёл период
+Return only the JSON object, no markdown or extra text.`;
 
-OUTRO:
-— ОБЯЗАТЕЛЬНО упомяни суммарный результат команды (sumDayDelta)
-— сравни его с каким-нибудь предметом из жизни
-  (арбуз, книга, кот, пакет гречки, кроссовки и т.п.)
-— сравнение должно быть лёгким и смешным, но без абсурда.
+const MONTHLY_REPORT_PROMPT = `You generate monthly Telegram reports for a team weight-loss challenge.
 
-Примеры:
-«Все вместе −1.9 кг — это как небольшая кошка 😄»
-«−0.6 кг на всех — минус одна банка Nutella 🍫»
+INPUT: JSON with statistics for the month. Use ONLY the data from this input; do not invent numbers or names.
 
-Если sumDayDelta ≈ 0:
-«Команда держит ровную линию — стабильность тоже результат 💪»
+AVAILABLE DATA:
+- date — report date / end of month (display as-is or format nicely)
+- sumDayDelta — team weight change during the month (kg). Negative = lost, positive = gained
+- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
+- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the month". Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
+- submitted — array of who weighed this month. Each item: name (may include achievement icon after name). When listing participants, output each name exactly as in submitted (with icon if present).
+- missing — names of who did not weigh this month (skip section if empty)
+- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
 
--------------------------
-ПЕРВЫЕ ЗАПИСИ
+OUTPUT: Strictly a single JSON object (this shape only):
+${RESPONSE_FORMAT_WITH_MEME}
 
-Приветствуй новичков тепло:
-«Добро пожаловать, <b>Аня</b>! 🎉»
+The message must be one string containing all sections below, in order. Write in Russian. The meme.object is used to fetch an image; use the same object you mention in the Analogy section.
 
--------------------------
-ЦЕЛИ
+STRUCTURE (each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
 
-Если кто-то близок к цели:
-«Финишная прямая, <b>Аня</b>! Уже 85% пути 🏁»
+1. 📊 Итоги месяца — team change (sumDayDelta, kg)
+2. 👑 Чемпион месяца — leader.name and leader.dayDelta (kg). Skip if leader missing.
+3. 👥 Кто отметился — list names from submitted (keep icons in names)
+4. 🚫 Пропустили — list names from missing (only if any)
+5. ⚖️ Аналогия — compare sumDayDelta to everyday object; use meme.object for image
+6. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
+7. 🔬 Факт месяца — one short science fact
+8. 😄 Шутка — one light joke
 
-Если достиг цели:
-«<b>Вася</b> достиг цели! Это праздник! 🎉»
+FORMATTING:
+- Start each section with emoji + title. One blank line between sections. Use • for list items. Concise, motivational tone.
 
--------------------------
-РЕГУЛЯРНОСТЬ
+Return only the JSON object, no markdown or extra text.`;
 
-Хвали стабильность:
-«Как всегда в строю, <b>Влад</b>! Вот это дисциплина 💪»
-
--------------------------
-МЕМ-ОБЪЕКТ (только для weekly/monthly)
-
-Для недельного и месячного отчёта ОБЯЗАТЕЛЬНО верни объект meme:
-- meme.object — один предмет для сравнения с суммарным результатом (существительное/фраза по-русски, например «пара зимних сапог», «арбуз», «книга»).
-- Этот же объект используй в тексте outro в сравнении с sumDayDelta.
-- meme.emoji — необязательно, один эмодзи если хочешь.
-- meme.caption — необязательно, короткая подпись БЕЗ цифр (до 140 символов).
-- В полях meme НЕ указывай имена людей и НЕ указывай вес/числа.
-
-Для daily отчёта meme может быть null или отсутствовать.
-
--------------------------
-ФОРМАТ ОТВЕТА
-
-Строго JSON, без лишних ключей и текста снаружи:
-
-{
-  "intro": "...",
-  "outro": "...",
-  "meme": {
-    "object": "строка — один предмет по-русски",
-    "emoji": "по желанию",
-    "caption": "по желанию, без цифр"
+function getSystemPrompt(kind: ReportPayload["kind"]): string {
+  switch (kind) {
+    case "daily":
+      return DAILY_REPORT_PROMPT;
+    case "weekly":
+      return WEEKLY_REPORT_PROMPT;
+    case "monthly":
+      return MONTHLY_REPORT_PROMPT;
+    default:
+      return DAILY_REPORT_PROMPT;
   }
 }
 
-Для daily можно: "meme": null или не включать meme.
-`;
+/** Minimal report payload for API: only fields used by daily/weekly/monthly prompts. */
+function buildMinimalPayloadForApi(payload: ReportPayload): object {
+  const base: Record<string, unknown> = {
+    date: payload.date,
+    sumDayDelta: payload.sumDayDelta,
+    countSubmitted: payload.countSubmitted,
+    countMissing: payload.countMissing,
+    leader: payload.leader ?? undefined,
+    submitted: payload.submitted.map((u) => ({
+      name: u.name,
+      dayDelta: u.dayDelta,
+      totalDelta: u.totalDelta,
+      goalRemaining: u.goalRemaining,
+      goalPercent: u.goalPercent,
+      goalReached: u.goalReached,
+    })),
+    missing: payload.missing,
+    goalsInfo: payload.goalsInfo ?? undefined,
+  };
+  if (payload.kind === "daily") {
+    if (payload.achievementLines?.length) base.achievementLines = payload.achievementLines;
+    if (payload.brokenLines?.length) base.brokenLines = payload.brokenLines;
+  }
+  return base;
+}
 
 function extractAllowedNumbers(payload: ReportPayload): Set<string> {
   const allowed = new Set<string>();
@@ -151,15 +178,41 @@ function extractAllowedNumbers(payload: ReportPayload): Set<string> {
       allowed.add(Math.abs(user.totalDelta).toFixed(1));
       allowed.add(String(Math.abs(user.totalDelta)));
     }
+    if (user.goalRemaining != null) {
+      allowed.add(user.goalRemaining.toFixed(1));
+      allowed.add(String(user.goalRemaining));
+    }
+    if (user.goalPercent != null) allowed.add(String(user.goalPercent));
+  }
+  if (payload.goalsInfo) {
+    for (const g of payload.goalsInfo) {
+      allowed.add(g.remaining.toFixed(1));
+      allowed.add(String(g.remaining));
+      allowed.add(String(g.percent));
+    }
   }
 
   allowed.add(String(payload.submitted.length));
   allowed.add(String(payload.missing.length));
   allowed.add(String(Math.abs(payload.sumDayDelta).toFixed(1)));
   allowed.add(String(Math.abs(payload.avgDayDelta).toFixed(2)));
+  if (payload.leader) {
+    allowed.add(Math.abs(payload.leader.dayDelta).toFixed(1));
+    allowed.add(String(Math.abs(payload.leader.dayDelta)));
+  }
 
   for (let i = 0; i <= 31; i++) {
     allowed.add(String(i));
+  }
+  if (payload.achievementLines) {
+    for (const a of payload.achievementLines) {
+      allowed.add(String(a.days));
+    }
+  }
+  if (payload.brokenLines) {
+    for (const b of payload.brokenLines) {
+      allowed.add(String(b.streak));
+    }
   }
 
   return allowed;
@@ -190,7 +243,7 @@ export async function humanizeReport(
   payload: ReportPayload,
   env: Env,
 ): Promise<HumanizedReport> {
-  const fallback: HumanizedReport = { intro: "", outro: "", meme: null };
+  const fallback: HumanizedReport = { message: "", meme: null };
 
   if (!env.OPENAI_API_KEY) {
     return fallback;
@@ -198,8 +251,12 @@ export async function humanizeReport(
 
   const model = env.OPENAI_MODEL || DEFAULT_MODEL;
 
-  const userPrompt = `Сделай дружескую сводку для этих данных:
-${JSON.stringify(payload, null, 2)}`;
+  const userContent =
+    payload.kind === "daily" ||
+    payload.kind === "weekly" ||
+    payload.kind === "monthly"
+      ? JSON.stringify(buildMinimalPayloadForApi(payload))
+      : JSON.stringify(payload);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -214,11 +271,11 @@ ${JSON.stringify(payload, null, 2)}`;
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
+          { role: "system", content: getSystemPrompt(payload.kind) },
+          { role: "user", content: userContent },
         ],
-        temperature: 0.7,
-        max_tokens: 500,
+        temperature: 0.85,
+        max_tokens: 1200,
       }),
       signal: controller.signal,
     });
@@ -244,32 +301,44 @@ ${JSON.stringify(payload, null, 2)}`;
       return fallback;
     }
 
-    let parsed: Record<string, unknown>;
+    let parsed: OpenAIReportResponse;
     try {
-      parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      const raw = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      const messageText =
+        typeof raw.message === "string"
+          ? raw.message
+          : [raw.intro, raw.outro]
+              .filter((s): s is string => typeof s === "string")
+              .join("\n\n");
+      parsed = { message: messageText, meme: raw.meme };
     } catch {
       return fallback;
     }
 
-    if (typeof parsed.intro !== "string" || typeof parsed.outro !== "string") {
+    const message = parsed.message;
+    if (!message) {
       return fallback;
     }
 
     const allowedNumbers = extractAllowedNumbers(payload);
-
-    if (
-      containsSuspiciousNumbers(parsed.intro, allowedNumbers) ||
-      containsSuspiciousNumbers(parsed.outro, allowedNumbers)
-    ) {
+    if (containsSuspiciousNumbers(message, allowedNumbers)) {
       logError("OpenAI response contains suspicious numbers, using fallback");
       return fallback;
     }
 
-    const meme = parsed.meme != null ? validateGptMeme(parsed.meme) : null;
+    const meme =
+      parsed.meme != null ? validateGptMeme(parsed.meme) : null;
 
+    const maxLen =
+      payload.kind === "daily"
+        ? MAX_LENGTH_DAILY
+        : payload.kind === "weekly"
+          ? MAX_LENGTH_WEEKLY
+          : payload.kind === "monthly"
+            ? MAX_LENGTH_MONTHLY
+            : MAX_LENGTH;
     return {
-      intro: parsed.intro.slice(0, MAX_LENGTH),
-      outro: parsed.outro.slice(0, MAX_LENGTH),
+      message: message.slice(0, maxLen),
       meme: meme ?? null,
     };
   } catch (error) {

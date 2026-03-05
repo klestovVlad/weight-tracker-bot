@@ -361,7 +361,7 @@ export async function handleDebugOpenai(
     date: "28.02.2026",
     kind: "daily" as const,
     submitted: [
-      { name: "Алексей", dayDelta: -0.5, totalDelta: -3.2 },
+      { name: "Алексей", dayDelta: -0.5, totalDelta: -3.2, goalRemaining: 2.1, goalPercent: 65, goalReached: false },
       { name: "Мария", dayDelta: 0.2, totalDelta: -1.8 },
       { name: "Иван", dayDelta: null, totalDelta: null },
     ],
@@ -373,6 +373,8 @@ export async function handleDebugOpenai(
     firstEntryNames: ["Иван"],
     countSubmitted: 3,
     countMissing: 2,
+    leader: { name: "Алексей", dayDelta: -0.5 },
+    goalsInfo: [{ name: "Алексей", remaining: 2.1, percent: 65, reached: false }],
   };
 
   await sendMessage(
@@ -386,11 +388,8 @@ export async function handleDebugOpenai(
 
     const response = `🤖 **OpenAI Response:**
 
-**Intro:**
-${result.intro || "(пусто)"}
-
-**Outro:**
-${result.outro || "(пусто)"}
+**Message:**
+${result.message || "(пусто)"}
 
 **Model:** ${env.OPENAI_MODEL || "gpt-4o-mini"}`;
 

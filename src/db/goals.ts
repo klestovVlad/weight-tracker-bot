@@ -24,6 +24,28 @@ export async function getGoal(db: D1Database, userId: number): Promise<Goal | nu
   return row || null;
 }
 
+/** Batch fetch goals by user IDs. Returns map user_id -> Goal (only users that have a goal). */
+export async function getGoalsByUserIds(
+  db: D1Database,
+  userIds: number[]
+): Promise<Map<number, Goal>> {
+  const map = new Map<number, Goal>();
+  if (userIds.length === 0) return map;
+  const chunkSize = 100;
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    const chunk = userIds.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(`SELECT * FROM goals WHERE user_id IN (${placeholders})`)
+      .bind(...chunk)
+      .all<Goal>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
 export async function upsertGoal(
   db: D1Database,
   userId: number,

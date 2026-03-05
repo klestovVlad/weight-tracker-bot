@@ -282,3 +282,270 @@ export async function getUserStreak(
 
   return { length, lastDate };
 }
+
+/** Max user_id count per IN clause to stay under SQLite bind limit. */
+const BATCH_CHUNK_SIZE = 100;
+
+function chunkIds(ids: number[]): number[][] {
+  const out: number[][] = [];
+  for (let i = 0; i < ids.length; i += BATCH_CHUNK_SIZE) {
+    out.push(ids.slice(i, i + BATCH_CHUNK_SIZE));
+  }
+  return out;
+}
+
+/** Weights for a single date, keyed by user_id. For daily report (today). */
+export async function getWeightsForDateByUsers(
+  db: D1Database,
+  date: string,
+  userIds: number[]
+): Promise<Map<number, WeightRecord>> {
+  const map = new Map<number, WeightRecord>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT * FROM weights WHERE user_id IN (${placeholders}) AND date = ?`
+      )
+      .bind(...chunk, date)
+      .all<WeightRecord>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
+/** Latest weight strictly before date, per user. For daily (previous day) and weekly (before week). */
+export async function getPreviousWeightsByUsers(
+  db: D1Database,
+  beforeDate: string,
+  userIds: number[]
+): Promise<Map<number, WeightRecord>> {
+  const map = new Map<number, WeightRecord>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT w.* FROM weights w
+         INNER JOIN (
+           SELECT user_id, MAX(date) as max_date
+           FROM weights
+           WHERE user_id IN (${placeholders}) AND date < ?
+           GROUP BY user_id
+         ) t ON w.user_id = t.user_id AND w.date = t.max_date`
+      )
+      .bind(...chunk, beforeDate)
+      .all<WeightRecord>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
+/** Latest weight on or before date, per user. For weekly/monthly end-of-period. */
+export async function getWeightsOnOrBeforeDateByUsers(
+  db: D1Database,
+  date: string,
+  userIds: number[]
+): Promise<Map<number, WeightRecord>> {
+  const map = new Map<number, WeightRecord>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT w.* FROM weights w
+         INNER JOIN (
+           SELECT user_id, MAX(date) as max_date
+           FROM weights
+           WHERE user_id IN (${placeholders}) AND date <= ?
+           GROUP BY user_id
+         ) t ON w.user_id = t.user_id AND w.date = t.max_date`
+      )
+      .bind(...chunk, date)
+      .all<WeightRecord>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
+/** First (earliest) weight within [startDate, endDate] per user. For monthly report. */
+export async function getFirstWeightInRangeByUsers(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  userIds: number[]
+): Promise<Map<number, WeightRecord>> {
+  const map = new Map<number, WeightRecord>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT w.* FROM weights w
+         INNER JOIN (
+           SELECT user_id, MIN(date) as min_date
+           FROM weights
+           WHERE user_id IN (${placeholders}) AND date >= ? AND date <= ?
+           GROUP BY user_id
+         ) t ON w.user_id = t.user_id AND w.date = t.min_date`
+      )
+      .bind(...chunk, startDate, endDate)
+      .all<WeightRecord>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
+/** Last (latest) weight within [startDate, endDate] per user. For weekly/monthly report. */
+export async function getLastWeightInRangeByUsers(
+  db: D1Database,
+  startDate: string,
+  endDate: string,
+  userIds: number[]
+): Promise<Map<number, WeightRecord>> {
+  const map = new Map<number, WeightRecord>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT w.* FROM weights w
+         INNER JOIN (
+           SELECT user_id, MAX(date) as max_date
+           FROM weights
+           WHERE user_id IN (${placeholders}) AND date >= ? AND date <= ?
+           GROUP BY user_id
+         ) t ON w.user_id = t.user_id AND w.date = t.max_date`
+      )
+      .bind(...chunk, startDate, endDate)
+      .all<WeightRecord>();
+    for (const row of result.results ?? []) {
+      map.set(row.user_id, row);
+    }
+  }
+  return map;
+}
+
+export async function getOverallFirstAndLastByUsers(
+  db: D1Database,
+  userIds: number[]
+): Promise<Map<number, OverallStats>> {
+  const map = new Map<number, OverallStats>();
+  if (userIds.length === 0) return map;
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const statsResult = await db
+      .prepare(
+        `SELECT user_id, MIN(date) as first_date, MAX(date) as last_date, COUNT(*) as total_entries
+         FROM weights
+         WHERE user_id IN (${placeholders})
+         GROUP BY user_id`
+      )
+      .bind(...chunk)
+      .all<{
+        user_id: number;
+        first_date: string;
+        last_date: string;
+        total_entries: number;
+      }>();
+
+    const stats = statsResult.results ?? [];
+    if (stats.length === 0) continue;
+
+    const firstOrClauses = stats
+      .map(() => "(user_id = ? AND date = ?)")
+      .join(" OR ");
+    const firstBind = stats.flatMap((s) => [s.user_id, s.first_date]);
+    const firstRows = await db
+      .prepare(
+        `SELECT user_id, weight_kg FROM weights WHERE ${firstOrClauses}`
+      )
+      .bind(...firstBind)
+      .all<{ user_id: number; weight_kg: number }>();
+
+    const lastOrClauses = stats
+      .map(() => "(user_id = ? AND date = ?)")
+      .join(" OR ");
+    const lastBind = stats.flatMap((s) => [s.user_id, s.last_date]);
+    const lastRows = await db
+      .prepare(
+        `SELECT user_id, weight_kg FROM weights WHERE ${lastOrClauses}`
+      )
+      .bind(...lastBind)
+      .all<{ user_id: number; weight_kg: number }>();
+
+    const firstMap = new Map(
+      (firstRows.results ?? []).map((r) => [r.user_id, r.weight_kg])
+    );
+    const lastMap = new Map(
+      (lastRows.results ?? []).map((r) => [r.user_id, r.weight_kg])
+    );
+
+    for (const s of stats) {
+      const firstKg = firstMap.get(s.user_id);
+      const lastKg = lastMap.get(s.user_id);
+      if (firstKg != null && lastKg != null) {
+        map.set(s.user_id, {
+          firstDate: s.first_date,
+          firstWeight: firstKg,
+          lastDate: s.last_date,
+          lastWeight: lastKg,
+          totalEntries: s.total_entries,
+        });
+      }
+    }
+  }
+  return map;
+}
+
+/** Streak length (consecutive days) per user. Fetches dates per user in one query per chunk, then computes in memory. */
+export async function getUserStreakLengthsByUsers(
+  db: D1Database,
+  userIds: number[]
+): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  if (userIds.length === 0) return map;
+
+  for (const chunk of chunkIds(userIds)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const result = await db
+      .prepare(
+        `SELECT user_id, date FROM weights
+         WHERE user_id IN (${placeholders})
+         ORDER BY user_id, date DESC`
+      )
+      .bind(...chunk)
+      .all<{ user_id: number; date: string }>();
+
+    const rows = result.results ?? [];
+    const byUser = new Map<number, string[]>();
+    for (const r of rows) {
+      if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+      byUser.get(r.user_id)!.push(r.date);
+    }
+
+    for (const [uid, dates] of byUser) {
+      const dateSet = new Set(dates);
+      const lastDate = dates[0];
+      let length = 1;
+      let current = lastDate;
+      for (;;) {
+        const prev = getPreviousDay(current);
+        if (!dateSet.has(prev)) break;
+        length++;
+        current = prev;
+      }
+      map.set(uid, length);
+    }
+  }
+  return map;
+}
