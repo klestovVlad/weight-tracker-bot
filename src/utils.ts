@@ -148,11 +148,11 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_goal, callback_data: "menu_goal" }
     ]);
     keyboard.push([
-      { text: RU.btn_frequency, callback_data: "menu_frequency" },
+      { text: RU.btn_achievements, callback_data: "menu_my_achievements" },
       { text: RU.btn_vacation, callback_data: "menu_vacation" }
     ]);
     keyboard.push([{ text: RU.btn_help, callback_data: "menu_help" }]);
-    keyboard.push([{ text: RU.btn_achievements, callback_data: "menu_my_achievements" }]);
+    keyboard.push([{ text: RU.btn_frequency, callback_data: "menu_frequency" }]);
   }
 
   if (isOwnerUser) {

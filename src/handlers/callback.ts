@@ -17,6 +17,7 @@ import {
 } from "./leaderboard";
 import { handleGoalMenu, handleGoalSetStart, handleGoalDelete } from "./goal";
 import { handleMyAchievements } from "./achievements";
+import { setWeighFrequency, type WeighFrequency } from "../db/user-settings";
 
 export async function handleCallbackQuery(
   env: Env,
@@ -97,6 +98,13 @@ export async function handleCallbackQuery(
       return handleVacationSet(env, message.chat.id, userId, isPrivate, 30);
     case "vacation_off":
       return handleVacationOff(env, message.chat.id, userId, isPrivate);
+
+    case "menu_frequency":
+      return handleFrequencyMenu(env, message.chat.id, isPrivate);
+    case "frequency_daily":
+      return handleFrequencySet(env, message.chat.id, userId, isPrivate, "daily");
+    case "frequency_weekly":
+      return handleFrequencySet(env, message.chat.id, userId, isPrivate, "weekly");
 
     case "menu_leaderboard":
       return handleLeaderboardMenu(env, message.chat.id, isPrivate);
@@ -604,6 +612,47 @@ async function handleVacationOff(
   }
 
   return handleClearVacation(env, chatId, userId);
+}
+
+function createFrequencyPicker(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: RU.frequency_daily, callback_data: "frequency_daily" }],
+      [{ text: RU.frequency_weekly, callback_data: "frequency_weekly" }],
+      [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+    ],
+  };
+}
+
+async function handleFrequencyMenu(
+  env: Env,
+  chatId: number,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.frequency_pick, {
+    reply_markup: createFrequencyPicker(),
+  });
+}
+
+async function handleFrequencySet(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isPrivate: boolean,
+  frequency: WeighFrequency,
+): Promise<Response> {
+  if (!isPrivate) {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.private_only);
+  }
+
+  await setWeighFrequency(env.DB, userId, frequency);
+  const text =
+    frequency === "daily" ? RU.frequency_set_daily : RU.frequency_set_weekly;
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, text);
 }
 
 function createLeaderboardPicker(): InlineKeyboardMarkup {
