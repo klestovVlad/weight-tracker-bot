@@ -13,91 +13,69 @@ export interface StickerImageB64 {
   b64: string;
 }
 
-type StickerReaction =
-  | "huge_win"
-  | "good_progress"
-  | "small_win"
-  | "neutral"
-  | "oops"
-  | "disaster";
-
-function getStickerReaction(sumKg: number): StickerReaction {
-  if (sumKg <= -3) return "huge_win";
-  if (sumKg <= -1) return "good_progress";
-  if (sumKg < 0) return "small_win";
-  if (sumKg === 0) return "neutral";
-  if (sumKg <= 1) return "oops";
-  return "disaster";
+/** Normalize object string: strip sticker prefix, trim. */
+function normalizeObjectInput(raw: string): string {
+  let s = raw.trim();
+  if (s.toLowerCase().startsWith("sticker:")) s = s.slice(8).trim();
+  if (s.toLowerCase().startsWith("[sticker]")) s = s.slice(9).trim();
+  return s;
 }
 
-const crocodileReactions: Record<StickerReaction, string[]> = {
-  huge_win: [
-    "celebrating wildly with arms raised",
-    "jumping with victory",
-    "wearing a crown and cheering",
-    "flexing muscles proudly",
-  ],
+/** Russian words for animals — object must not be an animal (food or item only). */
+const ANIMAL_WORDS = new Set([
+  "кошка", "кот", "котёнок", "котята", "собака", "пёс", "собаки", "щенок", "щенки",
+  "мышь", "мыши", "хомяк", "хомяки", "птица", "птицы", "рыба", "рыбы", "корова", "коровы",
+  "свинья", "свиньи", "лошадь", "лошади", "крокодил", "крокодилы", "заяц", "зайцы",
+  "медведь", "медведи", "лиса", "лисы", "волк", "волки", "слон", "слоны", "обезьяна", "обезьяны",
+  "попугай", "попугаи", "голубь", "голуби", "курица", "курицы", "утка", "утки", "гусь", "гуси",
+  "кролик", "кролики", "крыса", "крысы", "змея", "змеи", "черепаха", "черепахи",
+  "лягушка", "лягушки", "кит", "киты", "дельфин", "дельфины", "животное", "животные",
+  "зверь", "звери", "пёсик", "котик", "котенок",
+]);
 
-  good_progress: [
-    "lifting dumbbells proudly",
-    "showing thumbs up",
-    "running confidently",
-    "standing proud on a scale",
-  ],
+function containsAnimalWord(text: string): boolean {
+  const lower = text.toLowerCase().replace(/\s+/g, " ");
+  const tokens = lower.split(/[\s\-]+/).filter(Boolean);
+  return tokens.some((t) => ANIMAL_WORDS.has(t));
+}
 
-  small_win: [
-    "smiling with relief",
-    "wiping sweat after workout",
-    "sitting tired but happy",
-  ],
-
-  neutral: [
-    "shrugging confused",
-    "checking the scale carefully",
-    "thinking with a skeptical face",
-  ],
-
-  oops: [
-    "guiltily eating a burger",
-    "hiding fries behind back",
-    "facepalm reaction",
-  ],
-
-  disaster: [
-    "lying on the floor exhausted",
-    "crying dramatically",
-    "holding empty snack wrappers",
-  ],
-};
-
-const reactionLabels: Record<StickerReaction, string> = {
-  huge_win: "a huge victory celebration",
-  good_progress: "proud good progress",
-  small_win: "a small but pleasant win",
-  neutral: "uncertain neutral mood",
-  oops: "a light guilty oops reaction",
-  disaster: "a dramatic total disaster",
-};
-
-const captionStyles = [
-  "comic speech bubble",
-  "bold ribbon banner",
-  "handheld cardboard sign",
-  "sport scoreboard panel",
-  "victory medal badge",
-  "comic explosion bubble",
-  "sticker caption below character",
+/** Safe fallback objects (food or items only) when object is an animal or invalid. */
+const SAFE_STICKER_OBJECTS = [
+  "бутылка воды",
+  "пачка пельменей",
+  "средний арбуз",
+  "упаковка сливочного масла",
+  "банка Nutella",
+  "пара кроссовок",
+  "толстая книга",
+  "поллитра мороженого",
+  "бутылка вина",
+  "пара зимних сапог",
+  "ноутбук с зарядкой",
+  "средняя тыква",
+  "упаковка стирального порошка",
 ];
 
+/** Returns object text safe for sticker: food or item only, never an animal. */
+function getSafeStickerObject(objectRu: string): string {
+  const normalized = normalizeObjectInput(objectRu);
+  if (!normalized || normalized.length < 2) {
+    return SAFE_STICKER_OBJECTS[Math.floor(Math.random() * SAFE_STICKER_OBJECTS.length)];
+  }
+  if (containsAnimalWord(normalized)) {
+    return SAFE_STICKER_OBJECTS[Math.floor(Math.random() * SAFE_STICKER_OBJECTS.length)];
+  }
+  return normalized;
+}
+
 /**
- * Generates a Telegram sticker image with a crocodile mascot.
- * Uses OpenAI Images API.
- * Transparent background, one short Russian line with sumStr.
+ * Generates a Telegram sticker image: realistic crocodile holding an object (food/item) in its mouth.
+ * Uses OpenAI Images API. Object is validated to be food or item only, not an animal.
  * Returns URL string, or { b64 } for base64, or null on failure.
  */
 export async function getStickerImageUrl(
   env: Env,
-  _objectRu: string,
+  objectRu: string,
   sumKg: number,
   options?: GetStickerImageOptions,
 ): Promise<string | StickerImageB64 | { error: string } | null> {
@@ -108,61 +86,36 @@ export async function getStickerImageUrl(
   }
 
   const sumStr = sumKg >= 0 ? `+${sumKg}` : String(sumKg);
-
-  const reaction = getStickerReaction(sumKg);
-  const poses = crocodileReactions[reaction];
-  const pose = poses[Math.floor(Math.random() * poses.length)];
-
-  const captionStyle =
-    captionStyles[Math.floor(Math.random() * captionStyles.length)];
-
-  const caption = `КОМАНДА ${sumStr} КГ`;
+  const objectText = getSafeStickerObject(objectRu);
 
   const prompt = `
-Telegram sticker, PNG.
-
-Transparent background.
-Square composition.
-
-CHARACTER
-A slightly chubby green cartoon crocodile mascot.
-Always the same crocodile design.
+Telegram sticker. Transparent background. Square composition.
 
 STYLE
-telegram sticker pack style
-thick white outline
-flat colors
-bold shapes
-clean cartoon style
-memey reaction sticker
+Semi-realistic crocodile illustration. Photorealistic reptile skin texture. Natural crocodile colors and lighting. Not cartoon, not vector, not cute. The crocodile should look like a real animal photo, but formatted as a meme sticker.
 
-POSE
-The crocodile is ${pose}.
+CHARACTER
+Large crocodile head with mouth wide open. Sharp realistic teeth. Detailed reptile scales. Pink mouth interior. Expression slightly funny or mischievous.
 
-EMOTION
-Overall mood: ${reactionLabels[reaction]}.
+ACTION
+The crocodile is holding ${objectText} in its mouth.
 
-CAPTION
-Add a short caption integrated into the sticker.
-The caption must be EXACTLY:
+COMPOSITION
+Top banner: "КОМАНДА ${sumStr} КГ"
+Bottom banner: "ЭТО КАК ${objectText}!"
+The object must be clearly visible in the mouth.
 
-"${caption}"
+TEXT STYLE
+Bold meme banner style. Yellow ribbon banners. Black bold text.
 
-Caption style:
-${captionStyle}
+STICKER STYLE
+White sticker outline around the whole composition.
 
-Rules:
-large bold lettering
-one line only
-Russian only
-do not add extra words
+DETAILS
+Water drops near the mouth. Dynamic meme energy.
 
-GENERAL RULES
-no cigarettes
-no money
-no logos
-no watermark
-no background scene
+RULES
+No cartoon crocodile. No mascot style. No people. No logos. Russian text only.
 `.trim();
 
   const body: Record<string, unknown> = {
