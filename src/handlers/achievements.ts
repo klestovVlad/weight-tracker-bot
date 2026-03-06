@@ -2,6 +2,7 @@ import { Env } from "../types";
 import { sendMessage } from "../telegram/api";
 import { RU } from "../i18n";
 import { getStreakIcon, getNextStreakLevel, STREAK_LEVELS } from "../utils";
+import { getCrownUserId } from "../db/settings";
 import { getUserStreak } from "../db/weights";
 
 function progressBar(current: number, target: number, length: number = 12): string {
@@ -17,12 +18,17 @@ export async function handleMyAchievements(
   chatId: number,
   userId: number
 ): Promise<Response> {
-  const streakInfo = await getUserStreak(env.DB, userId);
+  const [streakInfo, crownUserId] = await Promise.all([
+    getUserStreak(env.DB, userId),
+    getCrownUserId(env.DB),
+  ]);
   const streak = streakInfo?.length ?? 0;
   const icon = getStreakIcon(streak);
   const nextLevel = getNextStreakLevel(streak);
+  const hasCrown = crownUserId != null && userId === crownUserId;
 
   let text = RU.achievements_title + "\n\n";
+  if (hasCrown) text += RU.achievements_crown + "\n\n";
 
   if (streak < 3) {
     const left = 3 - streak;

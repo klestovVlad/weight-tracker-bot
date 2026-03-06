@@ -8,6 +8,7 @@ import {
   getUserStreakLengthsByUsers,
 } from "../../db/weights";
 import { getUsersOnVacation } from "../../db/user-settings";
+import { getCrownUserId } from "../../db/settings";
 import { getAllUsers } from "../../db/users";
 import { formatDateRu, getGoalSnippetsByUsers, getLeaderFromSubmitted } from "./helpers";
 
@@ -48,11 +49,10 @@ export async function buildMonthlyPayload(
       getUserStreakLengthsByUsers(env.DB, userIds),
     ]);
 
-  const goalSnippets = await getGoalSnippetsByUsers(
-    env.DB,
-    userIds,
-    overallByUser,
-  );
+  const [goalSnippets, crownUserId] = await Promise.all([
+    getGoalSnippetsByUsers(env.DB, userIds, overallByUser),
+    getCrownUserId(env.DB),
+  ]);
 
   const submitted: ReportUserDelta[] = [];
   const goalsInfo: ReportGoalsInfo[] = [];
@@ -84,8 +84,10 @@ export async function buildMonthlyPayload(
     }
 
     const streakIcon = getStreakIcon(streakLengths.get(user.user_id) ?? 0);
+    let name = streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name;
+    if (crownUserId != null && user.user_id === crownUserId) name = "👑 " + name;
     submitted.push({
-      name: streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name,
+      name,
       dayDelta: monthDelta,
       totalDelta,
       goalRemaining: goalInfo?.remaining,
@@ -103,16 +105,23 @@ export async function buildMonthlyPayload(
     }
   }
 
-  const allUsers = await getAllUsers(env.DB);
+  const [allUsers, vacationUserIds] = await Promise.all([
+    getAllUsers(env.DB),
+    getUsersOnVacation(env.DB, today),
+  ]);
   const submittedIds = new Set(usersThisMonth.map((u) => u.user_id));
-  const vacationUserIds = new Set(await getUsersOnVacation(env.DB, today));
+  const vacationSet = new Set(vacationUserIds);
   const missing = allUsers
     .filter(
-      (u) => !submittedIds.has(u.user_id) && !vacationUserIds.has(u.user_id),
+      (u) => !submittedIds.has(u.user_id) && !vacationSet.has(u.user_id),
     )
     .map((u) => u.display_name);
 
   const leader = getLeaderFromSubmitted(submitted);
+  const crownHolderName =
+    crownUserId != null
+      ? allUsers.find((u) => u.user_id === crownUserId)?.display_name ?? undefined
+      : undefined;
 
   return {
     date: formatDateRu(today),
@@ -131,5 +140,6 @@ export async function buildMonthlyPayload(
     countSubmitted: submitted.length,
     countMissing: missing.length,
     leader: leader ?? undefined,
+    crownHolderName: crownHolderName ?? undefined,
   };
 }

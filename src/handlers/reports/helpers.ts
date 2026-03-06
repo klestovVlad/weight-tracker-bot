@@ -4,7 +4,7 @@ import type { OverallStats } from "../../db/weights";
 import type { ReportUserDelta } from "../../types";
 import { formatGoalSnippet } from "../goal";
 
-/** Participant with best (most negative) dayDelta in the period. Returns null if no one has dayDelta. */
+/** Participant with best (most negative) dayDelta in the period. More negative = more weight lost = leader. Returns null if no one has dayDelta. */
 export function getLeaderFromSubmitted(
   submitted: ReportUserDelta[],
 ): { name: string; dayDelta: number } | null {

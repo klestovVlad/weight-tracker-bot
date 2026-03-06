@@ -1,6 +1,6 @@
 import { Env } from "../../types";
 import { sendMessage } from "../../telegram/api";
-import { getSetting } from "../../db/settings";
+import { getSetting, setCrownUserId } from "../../db/settings";
 import { RU } from "../../i18n";
 import { buildDailyPayload } from "./payload-daily";
 import { buildWeeklyPayload } from "./payload-weekly";
@@ -52,6 +52,8 @@ export async function generateWeeklyReport(
   }
 
   await sendReport(env, chatId, payload);
+  const newCrownUserId = payload.leader?.userId ?? null;
+  await setCrownUserId(env.DB, newCrownUserId);
 }
 
 export async function generateMonthlyReport(

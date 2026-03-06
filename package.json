@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "env -u npm_config_devdir WRANGLER_LOG=warn WRANGLER_LOG_PATH=.wrangler-logs wrangler deploy",
     "migrate:local": "wrangler d1 execute DB --local --file=migrations/0001_init.sql",
     "migrate:remote": "wrangler d1 execute DB --remote --file=migrations/0001_init.sql",
     "types": "wrangler types"
@@ -12,7 +12,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240129.0",
     "typescript": "^5.3.3",
-    "wrangler": "^3.28.0"
+    "wrangler": "^4.71.0"
   },
   "dependencies": {
     "@cf-wasm/photon": "^0.3.4"

@@ -58,8 +58,10 @@ export interface ReportPayload {
   achievementLines?: Array<{ name: string; icon: string; days: number }>;
   /** Broken streaks (daily report). */
   brokenLines?: Array<{ name: string; streak: number }>;
-  /** Pre-computed leader/champion: participant with best (most negative) dayDelta this period. */
-  leader?: { name: string; dayDelta: number } | null;
+  /** Pre-computed leader/champion: participant with best (most negative) dayDelta this period. userId set for weekly (to assign crown). */
+  leader?: { name: string; dayDelta: number; userId?: number } | null;
+  /** Name of user who wears the crown this week (for report text: "Корону теперь носит X"). */
+  crownHolderName?: string | null;
 }
 
 /** One submitted user in a report payload. */

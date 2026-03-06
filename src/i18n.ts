@@ -268,6 +268,7 @@ ${link}`,
 
   // Achievements (personal screen)
   achievements_title: "🏅 Твои достижения",
+  achievements_crown: "👑 Ты носишь корону этой недели!",
   achievements_streak: (days: number, icon: string) =>
     `Текущий стрик: ${days} ${pluralDays(days)} ${icon}`,
   achievements_next: (icon: string, days: number, left: number) =>

@@ -2,10 +2,12 @@ import { Env } from "../types";
 import { sendMessage } from "../telegram/api";
 import { RU, formatDeltaRu } from "../i18n";
 import { getAllUsers } from "../db/users";
+import { getCrownUserId } from "../db/settings";
 import { getDateWithOffset, getTodayDate, getStreakIcon } from "../utils";
 import { getUserStreak } from "../db/weights";
 
 interface LeaderboardEntry {
+  userId: number;
   name: string;
   checkins: number;
   weekDelta: number | null;
@@ -39,8 +41,10 @@ async function getWeekData(
   };
 }
 
-function nameWithStreakIcon(name: string, icon: string): string {
-  return icon ? `${name} ${icon}` : name;
+function nameWithStreakIcon(name: string, icon: string, hasCrown?: boolean): string {
+  let n = icon ? `${name} ${icon}` : name;
+  if (hasCrown) n = "👑 " + n;
+  return n;
 }
 
 export async function handleLeaderboardWeekDelta(
@@ -49,7 +53,10 @@ export async function handleLeaderboardWeekDelta(
 ): Promise<Response> {
   const today = getTodayDate();
   const startDate = getDateWithOffset(-6);
-  const users = await getAllUsers(env.DB);
+  const [users, crownUserId] = await Promise.all([
+    getAllUsers(env.DB),
+    getCrownUserId(env.DB),
+  ]);
 
   const entries: LeaderboardEntry[] = [];
 
@@ -64,6 +71,7 @@ export async function handleLeaderboardWeekDelta(
     }
 
     entries.push({
+      userId: user.user_id,
       name: user.display_name,
       checkins: data.checkins,
       weekDelta,
@@ -89,7 +97,8 @@ export async function handleLeaderboardWeekDelta(
     const entry = top10[idx];
     const deltaStr = entry.weekDelta !== null ? formatDeltaRu(entry.weekDelta) : "—";
     const icon = getStreakIcon(entry.streak);
-    const nameWithIcon = nameWithStreakIcon(entry.name, icon);
+    const hasCrown = crownUserId != null && entry.userId === crownUserId;
+    const nameWithIcon = nameWithStreakIcon(entry.name, icon, hasCrown);
     lines.push(RU.leaderboard_line_delta(idx + 1, nameWithIcon, deltaStr, entry.checkins));
   }
 
@@ -102,7 +111,10 @@ export async function handleLeaderboardCheckins(
 ): Promise<Response> {
   const today = getTodayDate();
   const startDate = getDateWithOffset(-6);
-  const users = await getAllUsers(env.DB);
+  const [users, crownUserId] = await Promise.all([
+    getAllUsers(env.DB),
+    getCrownUserId(env.DB),
+  ]);
 
   const entries: LeaderboardEntry[] = [];
 
@@ -112,6 +124,7 @@ export async function handleLeaderboardCheckins(
     const streak = streakInfo?.length ?? 0;
 
     entries.push({
+      userId: user.user_id,
       name: user.display_name,
       checkins: data.checkins,
       weekDelta: null,
@@ -133,7 +146,8 @@ export async function handleLeaderboardCheckins(
   const lines = [RU.leaderboard_checkins_title, ""];
   top10.forEach((entry, idx) => {
     const icon = getStreakIcon(entry.streak);
-    const nameWithIcon = nameWithStreakIcon(entry.name, icon);
+    const hasCrown = crownUserId != null && entry.userId === crownUserId;
+    const nameWithIcon = nameWithStreakIcon(entry.name, icon, hasCrown);
     lines.push(RU.leaderboard_line_checkins(idx + 1, nameWithIcon, entry.checkins, entry.streak));
   });
 

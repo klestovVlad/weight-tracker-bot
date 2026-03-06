@@ -9,6 +9,7 @@ import {
   getUserStreakLengthsByUsers,
 } from "../../db/weights";
 import { getUsersOnVacation, getUsersWithDailyFrequency } from "../../db/user-settings";
+import { getCrownUserId } from "../../db/settings";
 import { formatDateRu, getGoalSnippetsByUsers, getLeaderFromSubmitted } from "./helpers";
 
 export async function buildDailyPayload(env: Env): Promise<ReportPayload | null> {
@@ -30,20 +31,19 @@ export async function buildDailyPayload(env: Env): Promise<ReportPayload | null>
 
   const userIds = usersToday.map((u) => u.user_id);
 
-  // Batch load: today weights, previous-day weights, overall stats, streak lengths (O(k) queries).
+  // Batch load: today weights, last weight before today per user (so everyone who has prior data gets a delta), overall stats, streak lengths.
   const [todayWeights, previousWeights, overallByUser, streakLengths] =
     await Promise.all([
       getWeightsForDateByUsers(env.DB, today, userIds),
-      getPreviousWeightsByUsers(env.DB, yesterday, userIds),
+      getPreviousWeightsByUsers(env.DB, today, userIds),
       getOverallFirstAndLastByUsers(env.DB, userIds),
       getUserStreakLengthsByUsers(env.DB, userIds),
     ]);
 
-  const goalSnippets = await getGoalSnippetsByUsers(
-    env.DB,
-    userIds,
-    overallByUser,
-  );
+  const [goalSnippets, crownUserId] = await Promise.all([
+    getGoalSnippetsByUsers(env.DB, userIds, overallByUser),
+    getCrownUserId(env.DB),
+  ]);
 
   const submitted: ReportUserDelta[] = [];
   const goalsInfo: ReportGoalsInfo[] = [];
@@ -95,8 +95,10 @@ export async function buildDailyPayload(env: Env): Promise<ReportPayload | null>
     }
 
     const streakIcon = getStreakIcon(streakToday);
+    let name = streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name;
+    if (crownUserId != null && user.user_id === crownUserId) name = "👑 " + name;
     submitted.push({
-      name: streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name,
+      name,
       dayDelta,
       totalDelta,
       goalRemaining: goalInfo?.remaining,

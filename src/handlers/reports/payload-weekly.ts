@@ -2,24 +2,25 @@ import { Env, ReportPayload, ReportUserDelta, ReportGoalsInfo } from "../../type
 import { getTodayDate, getDateWithOffset, getStreakIcon } from "../../utils";
 import {
   getUsersWithWeightInRange,
-  getWeightsOnOrBeforeDateByUsers,
+  getFirstWeightInRangeByUsers,
+  getLastWeightInRangeByUsers,
   getOverallFirstAndLastByUsers,
   getUserStreakLengthsByUsers,
 } from "../../db/weights";
 import { getUsersOnVacation } from "../../db/user-settings";
+import { getCrownUserId } from "../../db/settings";
 import { getAllUsers } from "../../db/users";
-import { formatDateRu, getGoalSnippetsByUsers, getLeaderFromSubmitted } from "./helpers";
+import { formatDateRu, getGoalSnippetsByUsers } from "./helpers";
 
 export async function buildWeeklyPayload(
   env: Env,
 ): Promise<ReportPayload | null> {
   const today = getTodayDate();
-  const weekAgo = getDateWithOffset(-6);
-  const beforeWeek = getDateWithOffset(-7);
+  const weekStart = getDateWithOffset(-6);
 
   const usersThisWeek = await getUsersWithWeightInRange(
     env.DB,
-    weekAgo,
+    weekStart,
     today,
   );
 
@@ -27,10 +28,10 @@ export async function buildWeeklyPayload(
 
   const userIds = usersThisWeek.map((u) => u.user_id);
 
-  const [latestByEndOfWeek, weightBeforeWeek, overallByUser, streakLengths] =
+  const [firstInWeekByUser, lastInWeekByUser, overallByUser, streakLengths] =
     await Promise.all([
-      getWeightsOnOrBeforeDateByUsers(env.DB, today, userIds),
-      getWeightsOnOrBeforeDateByUsers(env.DB, beforeWeek, userIds),
+      getFirstWeightInRangeByUsers(env.DB, weekStart, today, userIds),
+      getLastWeightInRangeByUsers(env.DB, weekStart, today, userIds),
       getOverallFirstAndLastByUsers(env.DB, userIds),
       getUserStreakLengthsByUsers(env.DB, userIds),
     ]);
@@ -46,10 +47,13 @@ export async function buildWeeklyPayload(
   let sumWeekDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
+  let leaderCandidate: { name: string; dayDelta: number; userId: number } | null = null;
+
+  const crownUserId = await getCrownUserId(env.DB);
 
   for (const user of usersThisWeek) {
-    const latestThisWeek = latestByEndOfWeek.get(user.user_id);
-    const weightBefore = weightBeforeWeek.get(user.user_id);
+    const firstInWeek = firstInWeekByUser.get(user.user_id);
+    const lastInWeek = lastInWeekByUser.get(user.user_id);
     const overallStats = overallByUser.get(user.user_id);
     const goalInfo = goalSnippets.get(user.user_id);
 
@@ -60,25 +64,31 @@ export async function buildWeeklyPayload(
 
     let weekDelta: number | null = null;
     if (
-      latestThisWeek &&
-      weightBefore &&
-      latestThisWeek.date !== weightBefore.date
+      firstInWeek &&
+      lastInWeek &&
+      firstInWeek.date !== lastInWeek.date
     ) {
-      weekDelta = latestThisWeek.weight_kg - weightBefore.weight_kg;
+      weekDelta = lastInWeek.weight_kg - firstInWeek.weight_kg;
       sumWeekDelta += weekDelta;
       countWithDelta++;
       if (weekDelta > 0) hasRegressions = true;
     }
 
     const streakIcon = getStreakIcon(streakLengths.get(user.user_id) ?? 0);
+    let name = streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name;
+    if (crownUserId != null && user.user_id === crownUserId) name = "👑 " + name;
     submitted.push({
-      name: streakIcon ? `${user.display_name} ${streakIcon}` : user.display_name,
+      name,
       dayDelta: weekDelta,
       totalDelta,
       goalRemaining: goalInfo?.remaining,
       goalPercent: goalInfo?.percent,
       goalReached: goalInfo?.reached,
     });
+
+    if (weekDelta !== null && (leaderCandidate === null || weekDelta < leaderCandidate.dayDelta)) {
+      leaderCandidate = { name, dayDelta: weekDelta, userId: user.user_id };
+    }
 
     if (goalInfo) {
       goalsInfo.push({
@@ -99,7 +109,9 @@ export async function buildWeeklyPayload(
     )
     .map((u) => u.display_name);
 
-  const leader = getLeaderFromSubmitted(submitted);
+  const leader = leaderCandidate
+    ? { name: leaderCandidate.name, dayDelta: leaderCandidate.dayDelta, userId: leaderCandidate.userId }
+    : undefined;
 
   return {
     date: formatDateRu(today),
@@ -118,5 +130,6 @@ export async function buildWeeklyPayload(
     countSubmitted: submitted.length,
     countMissing: missing.length,
     leader: leader ?? undefined,
+    crownHolderName: leader?.name ?? undefined,
   };
 }

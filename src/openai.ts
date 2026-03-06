@@ -20,6 +20,36 @@ const RESPONSE_FORMAT_DAILY = '{ "message": "..." }';
 const RESPONSE_FORMAT_WITH_MEME =
   '{ "message": "...", "meme": { "object": "<noun phrase in Russian>", "caption": "<optional>" } }';
 
+/** Shared analogy rules for weekly and monthly reports (meme/sticker object comparison). */
+const ANALOGY_SECTION = `
+Compare the absolute value of sumDayDelta with a real physical object that has roughly the same weight. Write the analogy in Russian.
+
+ANALOGY STYLE:
+The analogy should be unexpected, chaotic, and sometimes absurd.
+
+Prefer strange or meme-like objects, e.g.:
+- giant dildo / огромный дилдо
+- common dildo / обычный резиновый член
+- mannequin head / голова манекена
+- Lenin bust / бюст Ленина
+- rubber chicken / резиновый цыплёнок
+- meteorite fragment / осколок метеорита
+- giant cactus / огромный кактус
+- bag of cat food / мешок корма для кота
+- plastic dinosaur / пластиковый динозавр
+- weird statue / странная статуя
+- karaoke trophy / караоке-трофей
+
+The analogy can be silly or adult, but the object must realistically weigh about the same.
+
+Avoid boring or overused comparisons: гиря, телефон, обувь, яблоко, арбуз, ноутбук с зарядкой.
+
+If the object is not very decent (adult or suggestive), that's fine — such images can be blurred when displayed.
+
+The goal is funny, surprising objects that are visually memorable for a meme or sticker. meme.object must be short (1–4 words) in Russian, suitable for an image.
+
+CRITICAL — SAME OBJECT IN BOTH PLACES: Use ONE object. Write it in the analogy sentence in the message (e.g. "Это как голова манекена."). Put the EXACT SAME phrase in meme.object (e.g. "голова манекена"). The text in the Analogy section and meme.object must be identical — copy the same noun phrase into both.`;
+
 const DAILY_REPORT_PROMPT = `You generate daily Telegram reports for a team weight-loss challenge.
 
 INPUT: JSON with statistics for one day. Use ONLY the data from this input; do not invent numbers or names.
@@ -29,7 +59,7 @@ AVAILABLE DATA:
 - sumDayDelta — team weight change today (kg). Negative = lost, positive = gained
 - countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
 - leader — optional. If present: { name, dayDelta } is the pre-computed "Leader of the day" (best negative dayDelta). Use leader.name and leader.dayDelta in the Leader section. If leader is missing, skip the Leader section or write one short neutral line.
-- submitted — array of who weighed today. Each item: name (may include achievement icon emoji after name, e.g. "Вася 🔸"), dayDelta, totalDelta, goalRemaining, goalPercent, goalReached. When listing "Who weighed today", output each name exactly as in submitted (with icon if present).
+- submitted — array of who weighed today. Each item: name (may include achievement icon emoji after name, e.g. "Вася 🔸"), dayDelta (weight change since last weigh-in, kg; negative = lost), totalDelta, goalRemaining, goalPercent, goalReached. In "Кто отметился" list each name with their dayDelta when present (e.g. "• Вася 🔸 −0.5 кг", "• Маша +0.2 кг"); skip delta only if dayDelta is null.
 - missing — names of who did not weigh today (skip section if empty)
 - achievementLines — optional. Array of { name, icon, days }: people who reached a new streak level today. If present, add section "🏅 Новые ачивки сегодня" and list each as "• name: icon N дней подряд". Skip section if missing or empty.
 - brokenLines — optional. Array of { name, streak }: people who missed today and broke a streak of 3+ days. If present, add section "💔 Прервали серию" and list each as "• name прервал серию из N дней". Skip section if missing or empty.
@@ -43,7 +73,7 @@ The message must be one string containing all sections below, in order. Write in
 STRUCTURE (keep each section 1–3 sentences; separate sections with a blank line; use bullet • for lists of names):
 
 1. 📉 Итог дня — team change today (sumDayDelta, kg)
-2. 👥 Кто отметился — list names from submitted (keep icons in names)
+2. 👥 Кто отметился — list each person from submitted with their dayDelta in kg (e.g. "• Name −0.5 кг"); keep icons in names
 3. 🚫 Пропустили — list names from missing (only if any)
 4. 🏅 Новые ачивки сегодня — from achievementLines (only if present)
 5. 💔 Прервали серию — from brokenLines (only if present)
@@ -59,71 +89,92 @@ FORMATTING:
 
 Return only the JSON object, no markdown or extra text.`;
 
-const WEEKLY_REPORT_PROMPT = `You generate weekly Telegram reports for a team weight-loss challenge.
+const WEEKLY_REPORT_PROMPT = `You generate WEEKLY Telegram reports for a team weight-loss challenge. This report is always about ONE WEEK (неделя). Never use "month" or "месяц".
 
-INPUT: JSON with statistics for the week. Use ONLY the data from this input; do not invent numbers or names.
+INPUT: JSON with statistics for the week. Use ONLY the data from input; do not invent numbers or names.
 
 AVAILABLE DATA:
 - date — report date / end of week (display as-is or format nicely)
-- sumDayDelta — team weight change during the week (kg). Negative = lost, positive = gained
-- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
-- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the week". Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
-- submitted — array of who weighed this week. Each item: name (may include achievement icon after name, e.g. "Вася 🔸"), dayDelta, totalDelta, goalRemaining, goalPercent, goalReached. When listing participants, output each name exactly as in submitted (with icon if present).
+- sumDayDelta — total team weight change for the week (kg). Negative = lost, positive = gained
+- countSubmitted, countMissing — optional for phrasing
+- leader — optional. { name, dayDelta } = pre-computed Champion of the week (best negative week delta). Use leader.name and leader.dayDelta. Skip Champion section if leader missing.
+- crownHolderName — optional. Name of the person who will wear the crown for the coming week (same as leader). If present, add: "Корону на эту неделю носит [crownHolderName]." in or right after the Champion section.
+- submitted — array of who weighed this week. Each item: name (may include achievement icon, e.g. "Вася 🔸"), dayDelta (week delta in kg). List each with their dayDelta when present (e.g. "• Вася 🔸 −0.5 кг"); keep icons in names; skip delta only if dayDelta is null.
 - missing — names of who did not weigh this week (skip section if empty)
-- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
+- goalsInfo — optional. For "Прогресс по целям" use remaining, percent, totalLost from submitted[].totalDelta. Skip if missing or empty.
 
-OUTPUT: Strictly a single JSON object (this shape only):
+OUTPUT: Strictly return a single JSON object with the format:
 ${RESPONSE_FORMAT_WITH_MEME}
 
-The message must be one string containing all sections below, in order. Write in Russian. The meme.object is used to fetch an image; use the same object you mention in the Analogy section.
+Write the message in Russian. CRITICAL: meme.object must be the EXACT SAME phrase as the object you name in the Analogy section — one object, same words in both the message text and in meme.object.
 
-STRUCTURE (each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
+STRUCTURE:
 
-1. 📊 Итоги недели — team change (sumDayDelta, kg)
-2. 👑 Чемпион недели — leader.name and leader.dayDelta (kg). Skip if leader missing.
-3. 👥 Кто отметился — list names from submitted (keep icons in names)
-4. 🚫 Пропустили — list names from missing (only if any)
-5. ⚖️ Аналогия — compare sumDayDelta to everyday object; use meme.object for image
-6. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
-7. 🔬 Факт недели — one short science fact
-8. 😄 Шутка — one light joke
+1. 📊 Итоги недели
+Summarize the total team change for the week using sumDayDelta. Always say "за неделю".
 
-FORMATTING:
-- Start each section with emoji + title. One blank line between sections. Use • for list items. Concise, motivational tone.
+2. 👑 Чемпион недели
+Use leader.name and leader.dayDelta. If crownHolderName is present, add: Корону на эту неделю носит [crownHolderName]. Skip if leader missing.
 
+3. 👥 Кто отметился
+List submitted participants with their weekly delta in kg (e.g. "• Name −0.5 кг"); keep icons in names.
+
+4. 🚫 Пропустили
+List names from missing if any.
+
+5. ⚖️ Аналогия
+${ANALOGY_SECTION}
+
+6. 🎯 Прогресс по целям
+Summarize goal progress from goalsInfo if present. Skip if no goals.
+
+7. 🔬 Факт недели
+One short scientific fact about health, metabolism, sleep, or nutrition.
+
+8. 😄 Шутка
+Short friendly joke related to weight loss or food.
+
+STYLE: concise, friendly, motivational, slightly humorous, Telegram style.
+
+FORMAT: Each section 1–3 sentences. Separate sections (and separate sentences within sections) with a blank line. Use bullet • for lists.
+en
 Return only the JSON object, no markdown or extra text.`;
 
-const MONTHLY_REPORT_PROMPT = `You generate monthly Telegram reports for a team weight-loss challenge.
+const MONTHLY_REPORT_PROMPT = `You generate MONTHLY Telegram reports for a team weight-loss challenge. This report is always about ONE MONTH (месяц).
 
 INPUT: JSON with statistics for the month. Use ONLY the data from this input; do not invent numbers or names.
 
 AVAILABLE DATA:
 - date — report date / end of month (display as-is or format nicely)
-- sumDayDelta — team weight change during the month (kg). Negative = lost, positive = gained
-- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
-- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the month". Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
-- submitted — array of who weighed this month. Each item: name (may include achievement icon after name). When listing participants, output each name exactly as in submitted (with icon if present).
+- sumDayDelta — total team weight change for the month (kg). Sum of each participant's month delta. Negative = lost, positive = gained
+- countSubmitted, countMissing — number of people who weighed this month / who missed (optional for phrasing)
+- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the month" (best negative month delta). Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
+- crownHolderName — optional. Name of the user who currently wears the weekly crown. If present, add one line after Champion (or in it): "Корону теперь носит [crownHolderName]."
+- submitted — array of who weighed this month. Each item: name (may include achievement icon, e.g. "Вася 🔸"), dayDelta (weight change for the month, kg; negative = lost), totalDelta, goalRemaining, goalPercent, goalReached. In "Кто отметился" list each person with their dayDelta when present (e.g. "• Вася 🔸 −1.2 кг"); skip delta only if dayDelta is null.
 - missing — names of who did not weigh this month (skip section if empty)
-- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
+- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining and totalLost from submitted[].totalDelta. Skip section if goalsInfo is missing or empty.
 
 OUTPUT: Strictly a single JSON object (this shape only):
 ${RESPONSE_FORMAT_WITH_MEME}
 
-The message must be one string containing all sections below, in order. Write in Russian. The meme.object is used to fetch an image; use the same object you mention in the Analogy section.
+You MUST include the "meme" field with "object". CRITICAL: meme.object must be the EXACT SAME phrase as the object you name in the Analogy section — one object, same words in both the message text and in meme.object. The message must be one string containing all sections below, in order. Write in Russian.
 
-STRUCTURE (each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
+STRUCTURE (keep each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
 
-1. 📊 Итоги месяца — team change (sumDayDelta, kg)
-2. 👑 Чемпион месяца — leader.name and leader.dayDelta (kg). Skip if leader missing.
-3. 👥 Кто отметился — list names from submitted (keep icons in names)
+1. 📊 Итоги месяца — total team change for THE MONTH (sumDayDelta, kg). Say "месяц" / "за месяц".
+2. 👑 Чемпион месяца — leader.name and leader.dayDelta (kg). If crownHolderName is present, add: Корону теперь носит [crownHolderName]. Skip if leader missing.
+3. 👥 Кто отметился — list each person from submitted with their month delta in kg (e.g. "• Name −1.2 кг"); keep icons in names
 4. 🚫 Пропустили — list names from missing (only if any)
-5. ⚖️ Аналогия — compare sumDayDelta to everyday object; use meme.object for image
+5. ⚖️ Аналогия
+${ANALOGY_SECTION}
+
 6. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
 7. 🔬 Факт месяца — one short science fact
 8. 😄 Шутка — one light joke
 
 FORMATTING:
-- Start each section with emoji + title. One blank line between sections. Use • for list items. Concise, motivational tone.
+- Start each section with emoji + title. One blank line between sections. Use • for list items.
+- Short paragraphs, no tables. Concise, motivational tone.
 
 Return only the JSON object, no markdown or extra text.`;
 
@@ -148,6 +199,7 @@ function buildMinimalPayloadForApi(payload: ReportPayload): object {
     countSubmitted: payload.countSubmitted,
     countMissing: payload.countMissing,
     leader: payload.leader ?? undefined,
+    crownHolderName: payload.crownHolderName ?? undefined,
     submitted: payload.submitted.map((u) => ({
       name: u.name,
       dayDelta: u.dayDelta,
@@ -160,7 +212,8 @@ function buildMinimalPayloadForApi(payload: ReportPayload): object {
     goalsInfo: payload.goalsInfo ?? undefined,
   };
   if (payload.kind === "daily") {
-    if (payload.achievementLines?.length) base.achievementLines = payload.achievementLines;
+    if (payload.achievementLines?.length)
+      base.achievementLines = payload.achievementLines;
     if (payload.brokenLines?.length) base.brokenLines = payload.brokenLines;
   }
   return base;
@@ -275,7 +328,7 @@ export async function humanizeReport(
           { role: "user", content: userContent },
         ],
         temperature: 0.85,
-        max_tokens: 1200,
+        max_tokens: payload.kind === "monthly" ? 1600 : 1200,
       }),
       signal: controller.signal,
     });
@@ -326,8 +379,7 @@ export async function humanizeReport(
       return fallback;
     }
 
-    const meme =
-      parsed.meme != null ? validateGptMeme(parsed.meme) : null;
+    const meme = parsed.meme != null ? validateGptMeme(parsed.meme) : null;
 
     const maxLen =
       payload.kind === "daily"
