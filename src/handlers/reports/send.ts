@@ -3,7 +3,7 @@ import { sendMessage, sendSticker } from "../../telegram/api";
 import { getSetting } from "../../db/settings";
 import { humanizeReport } from "../../openai";
 import { pickMemeObject } from "../../helpers/meme";
-import { getMemeImageUrl } from "../../helpers/meme-image";
+import { getStickerImageUrl } from "../../helpers/sticker-image";
 import { logError } from "../../helpers/logging";
 
 export async function sendReport(
@@ -30,7 +30,7 @@ export async function sendReport(
     const memeObject = baseObject.startsWith("sticker:") || baseObject.startsWith("[sticker]")
       ? baseObject
       : `sticker: ${baseObject}`;
-    const imageResult = await getMemeImageUrl(
+    const imageResult = await getStickerImageUrl(
       env,
       memeObject,
       payload.sumDayDelta,

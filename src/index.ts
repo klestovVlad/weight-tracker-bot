@@ -75,11 +75,11 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
           await clearPendingAction(env.DB, userId);
           await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_sending);
           const { pickMemeObject } = await import("./helpers/meme");
-          const { getMemeImageUrl } = await import("./helpers/meme-image");
+          const { getStickerImageUrl } = await import("./helpers/sticker-image");
           const { sendSticker } = await import("./telegram/api");
           const objectDisplay = pickMemeObject(delta);
           const objectForApi = `sticker: ${objectDisplay}`;
-          const result = await getMemeImageUrl(env, objectForApi, delta, { returnError: true });
+          const result = await getStickerImageUrl(env, objectForApi, delta, { returnError: true });
           if (result != null && (typeof result === "string" || "b64" in result)) {
             await sendSticker(env.TELEGRAM_BOT_TOKEN, message.chat.id, result);
             await sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.debug_meme_sent(objectDisplay));
