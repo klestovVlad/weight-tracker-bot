@@ -40,9 +40,11 @@ npm install
 ### 3. Create D1 Database
 
 ```bash
-wrangler d1 create weight-tracker-db
+wrangler d1 create telegram-bot-db
 # Copy the database_id from output and paste it into wrangler.toml
 ```
+
+> The database name must match `database_name` in `wrangler.toml` (`telegram-bot-db`).
 
 ### 4. Update wrangler.toml
 
@@ -51,12 +53,16 @@ Replace `<YOUR_DATABASE_ID_HERE>` with your actual database ID.
 ### 5. Apply Database Migrations
 
 ```bash
-# Apply all migrations
+# Apply all migrations (run in order)
 wrangler d1 execute DB --remote --file=migrations/0001_init.sql
 wrangler d1 execute DB --remote --file=migrations/0002_weights.sql
 wrangler d1 execute DB --remote --file=migrations/0003_pending_actions.sql
 wrangler d1 execute DB --remote --file=migrations/0004_reminders_sent.sql
 wrangler d1 execute DB --remote --file=migrations/0005_reliability.sql
+wrangler d1 execute DB --remote --file=migrations/0006_user_settings.sql
+wrangler d1 execute DB --remote --file=migrations/0007_goals.sql
+wrangler d1 execute DB --remote --file=migrations/0008_memes_enabled.sql
+wrangler d1 execute DB --remote --file=migrations/0009_weigh_frequency.sql
 ```
 
 ### 6. Set Secrets
@@ -289,7 +295,7 @@ The group receives messages only via:
 
 ```
 ├── src/
-│   ├── index.ts              # Main worker entry point
+│   ├── index.ts              # Main worker entry point (HTTP + cron)
 │   ├── types.ts              # TypeScript interfaces
 │   ├── config.ts             # Constants
 │   ├── i18n.ts               # Russian translations
@@ -300,23 +306,44 @@ The group receives messages only via:
 │   ├── db/
 │   │   ├── users.ts          # User operations
 │   │   ├── weights.ts        # Weight operations
-│   │   ├── settings.ts       # Settings operations
+│   │   ├── settings.ts       # Global settings (key-value)
+│   │   ├── user-settings.ts  # Per-user settings (timezone, frequency)
+│   │   ├── goals.ts          # Target weight goals
 │   │   └── pending-actions.ts
 │   ├── handlers/
 │   │   ├── commands.ts       # Command handlers
 │   │   ├── weight.ts         # Weight input handler
 │   │   ├── callback.ts       # Callback query handler
-│   │   ├── reports.ts        # Daily/weekly reports
-│   │   └── reminders.ts      # Reminder logic
+│   │   ├── reminders.ts      # Reminder logic
+│   │   ├── achievements.ts   # Streak achievements
+│   │   ├── chart.ts          # PNG chart (QuickChart)
+│   │   ├── goal.ts           # Goal set/edit/delete
+│   │   ├── leaderboard.ts    # Leaderboard
+│   │   ├── vacation.ts       # Vacation pause
+│   │   └── reports/
+│   │       ├── index.ts          # Report orchestration
+│   │       ├── send.ts           # Sending to group
+│   │       ├── helpers.ts
+│   │       ├── payload-daily.ts
+│   │       ├── payload-weekly.ts
+│   │       └── payload-monthly.ts
 │   └── helpers/
 │       ├── job-lock.ts       # Idempotent job execution
-│       └── rate-limit.ts     # Anti-spam rate limiting
+│       ├── rate-limit.ts     # Anti-spam rate limiting
+│       ├── stats.ts          # Stats/sparkline helpers
+│       ├── meme.ts           # Meme object selection/validation
+│       ├── sticker-image.ts  # Meme/sticker image generation
+│       └── logging.ts        # Structured logging
 ├── migrations/
 │   ├── 0001_init.sql
 │   ├── 0002_weights.sql
 │   ├── 0003_pending_actions.sql
 │   ├── 0004_reminders_sent.sql
-│   └── 0005_reliability.sql
+│   ├── 0005_reliability.sql
+│   ├── 0006_user_settings.sql
+│   ├── 0007_goals.sql
+│   ├── 0008_memes_enabled.sql
+│   └── 0009_weigh_frequency.sql
 ├── wrangler.toml
 ├── package.json
 ├── tsconfig.json

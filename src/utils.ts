@@ -42,6 +42,13 @@ export function isSunday(dateStr: string): boolean {
   return getDayOfWeek(dateStr) === 0;
 }
 
+/** Whole days between two date strings (YYYY-MM-DD); positive if `to` is after `from`. */
+export function getDaysBetween(fromStr: string, toStr: string): number {
+  const from = new Date(fromStr + "T12:00:00.000Z").getTime();
+  const to = new Date(toStr + "T12:00:00.000Z").getTime();
+  return Math.round((to - from) / 86400000);
+}
+
 /** Monday of the week containing the given date (YYYY-MM-DD). Week is Mon–Sun. */
 export function getStartOfWeek(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00.000Z");

@@ -1,6 +1,6 @@
 import { Env, ReportPayload, HumanizedReport } from "./types";
 import { logError } from "./helpers/logging";
-import { validateGptMeme } from "./helpers/meme";
+import { validateGptMeme, analogyExamplesForWeight } from "./helpers/meme";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_LENGTH = 600;
@@ -20,174 +20,132 @@ const RESPONSE_FORMAT_DAILY = '{ "message": "..." }';
 const RESPONSE_FORMAT_WITH_MEME =
   '{ "message": "...", "meme": { "object": "<noun phrase in Russian>", "caption": "<optional>" } }';
 
-/** Shared analogy rules for weekly and monthly reports (meme/sticker object comparison). */
-const ANALOGY_SECTION = `
-Compare the absolute value of sumDayDelta with a real physical object that has roughly the same weight. Write the analogy in Russian.
+/** Shared voice/formatting guidance — keeps reports warm and varied, not templated. */
+const VOICE = `VOICE & FORMAT:
+- Write in Russian, like a friendly host of a team chat — warm, a little playful, never robotic.
+- This is a short Telegram post. Vary your wording every time; do NOT make it look like a filled-in template.
+- Cover the points below in a natural flow. You may merge related points into one sentence, reorder slightly, and choose your own phrasing and emoji. A couple of emoji are fine; don't put one in front of every line.
+- When you list people, use "• Имя ±X кг" on separate lines (this part stays structured so it's easy to scan). Keep any achievement icons that are already in the names.
+- Keep it concise: a few short paragraphs. No tables, no markdown headers.`;
 
-ANALOGY STYLE:
-The analogy should be unexpected, chaotic, and sometimes absurd.
+/** Builds the weight-grounded analogy instruction for the meme/sticker object. */
+function analogySection(absKg: number): string {
+  const kg = absKg.toFixed(1);
+  const examples = analogyExamplesForWeight(absKg);
+  return `WEIGHT ANALOGY:
+Make the team's total change tangible by comparing ${kg} кг to ONE real, everyday object that weighs about the same — roughly ${kg} кг (within ±30%). The object's REAL weight must be close to ${kg} кг; that is the whole point. Do NOT pick objects whose weight is wildly off, and avoid things with no stable weight.
+Good objects near this weight: ${examples}.
+Pick something recognizable and a little fun. Weave it into one sentence, e.g. "Это примерно как ведро воды."
+SAME OBJECT IN BOTH PLACES: use ONE object only. Put the EXACT SAME phrase you used in the sentence into meme.object — identical words. meme.object must be short (1–4 words), an everyday food or item (never an animal or a person), suitable for an image.`;
+}
 
-Prefer strange or meme-like objects, e.g.:
-- giant dildo / огромный дилдо
-- common dildo / обычный резиновый член
-- mannequin head / голова манекена
-- Lenin bust / бюст Ленина
-- rubber chicken / резиновый цыплёнок
-- meteorite fragment / осколок метеорита
-- giant cactus / огромный кактус
-- bag of cat food / мешок корма для кота
-- plastic dinosaur / пластиковый динозавр
-- weird statue / странная статуя
-- karaoke trophy / караоке-трофей
+/** Lighter analogy line for the daily report (no image generated). */
+function dailyAnalogyLine(absKg: number): string {
+  const kg = absKg.toFixed(1);
+  const examples = analogyExamplesForWeight(absKg);
+  return `One short, grounded comparison: relate ${kg} кг to a common object that really weighs about ${kg} кг (e.g. ${examples}). Skip it if the change is negligible.`;
+}
 
-The analogy can be silly or adult, but the object must realistically weigh about the same.
+function dailyPrompt(absKg: number): string {
+  return `You write the DAILY Telegram post for a team weight-loss challenge.
 
-Avoid boring or overused comparisons: гиря, телефон, обувь, яблоко, арбуз, ноутбук с зарядкой.
+Use ONLY the data from the input JSON — never invent numbers or names.
 
-If the object is not very decent (adult or suggestive), that's fine — such images can be blurred when displayed.
+DATA YOU GET:
+- date — the day
+- sumDayDelta — team change today (kg). Negative = lost, positive = gained
+- submitted — people who weighed today: name (may include an achievement icon), dayDelta (change since their last weigh-in, kg)
+- missing — people who did not weigh today
+- leader — best result of the day { name, dayDelta }, if any
+- achievementLines — people who hit a new streak level today { name, icon, days }
+- brokenLines — people who missed today and broke a 3+ day streak { name, streak }
+- goalsInfo / goalRemaining / goalPercent — progress toward personal goals, if set
 
-The goal is funny, surprising objects that are visually memorable for a meme or sticker. meme.object must be short (1–4 words) in Russian, suitable for an image.
+WHAT TO COVER (naturally, in your own words — not a fixed list of headed sections):
+- The headline: how the team did today (sumDayDelta).
+- Who checked in, each with their dayDelta as "• Имя ±X кг" (omit the number only if dayDelta is null). Keep icons in names.
+- Who missed today (only if anyone did) — keep it light, no shaming.
+- New streak achievements, if any.
+- Broken streaks, if any — gentle nudge, not a scold.
+- The leader of the day, if present.
+- ${dailyAnalogyLine(absKg)}
+- Goal progress, only if goalsInfo is present.
+- Optionally end with one light, short remark (a tiny fun fact or a joke) — only if it fits naturally.
 
-CRITICAL — SAME OBJECT IN BOTH PLACES: Use ONE object. Write it in the analogy sentence in the message (e.g. "Это как голова манекена."). Put the EXACT SAME phrase in meme.object (e.g. "голова манекена"). The text in the Analogy section and meme.object must be identical — copy the same noun phrase into both.`;
+${VOICE}
 
-const DAILY_REPORT_PROMPT = `You generate daily Telegram reports for a team weight-loss challenge.
+OUTPUT: strictly one JSON object, no markdown, no extra text:
+${RESPONSE_FORMAT_DAILY}`;
+}
 
-INPUT: JSON with statistics for one day. Use ONLY the data from this input; do not invent numbers or names.
+function weeklyPrompt(absKg: number): string {
+  return `You write the WEEKLY Telegram post for a team weight-loss challenge. It is always about ONE WEEK — say "за неделю", never "month".
 
-AVAILABLE DATA:
-- date — report date (display as-is or format nicely)
-- sumDayDelta — team weight change today (kg). Negative = lost, positive = gained
-- countSubmitted, countMissing — number of people who weighed / who missed (optional for phrasing)
-- leader — optional. If present: { name, dayDelta } is the pre-computed "Leader of the day" (best negative dayDelta). Use leader.name and leader.dayDelta in the Leader section. If leader is missing, skip the Leader section or write one short neutral line.
-- submitted — array of who weighed today. Each item: name (may include achievement icon emoji after name, e.g. "Вася 🔸"), dayDelta (weight change since last weigh-in, kg; negative = lost), totalDelta, goalRemaining, goalPercent, goalReached. In "Кто отметился" list each name with their dayDelta when present (e.g. "• Вася 🔸 −0.5 кг", "• Маша +0.2 кг"); skip delta only if dayDelta is null.
-- missing — names of who did not weigh today (skip section if empty)
-- achievementLines — optional. Array of { name, icon, days }: people who reached a new streak level today. If present, add section "🏅 Новые ачивки сегодня" and list each as "• name: icon N дней подряд". Skip section if missing or empty.
-- brokenLines — optional. Array of { name, streak }: people who missed today and broke a streak of 3+ days. If present, add section "💔 Прервали серию" and list each as "• name прервал серию из N дней". Skip section if missing or empty.
-- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining as remainingToGoal and totalLost from submitted[].totalDelta per user (negative = lost). Skip section if goalsInfo is missing or empty.
+Use ONLY the data from the input JSON — never invent numbers or names.
 
-OUTPUT: Strictly a single JSON object (this shape only):
-${RESPONSE_FORMAT_DAILY}
+DATA YOU GET:
+- date — end of the week
+- sumDayDelta — total team change for the week (kg). Negative = lost, positive = gained
+- submitted — people who weighed this week: name (may include an icon), dayDelta (their week change, kg)
+- missing — people who did not weigh this week
+- leader — champion of the week { name, dayDelta }, if any
+- crownHolderName — who wears the crown for the coming week (if present, mention it warmly near the champion)
+- goalsInfo / goalRemaining / goalPercent — progress toward personal goals, if set
 
-The message must be one string containing all sections below, in order. Write in Russian. No "meme" field for daily.
+WHAT TO COVER (naturally, in your own words — not a fixed list of headed sections):
+- The headline: the team's week (sumDayDelta), always "за неделю".
+- The champion of the week, if present; mention the crown holder if given.
+- Who checked in, each with their week delta as "• Имя ±X кг". Keep icons in names.
+- Who missed the week (only if anyone did) — light tone.
+- ${analogySection(absKg)}
+- Goal progress, only if goalsInfo is present.
+- Optionally close with one short fun fact or joke about health/food — only if it fits.
 
-STRUCTURE (keep each section 1–3 sentences; separate sections with a blank line; use bullet • for lists of names):
+${VOICE}
 
-1. 📉 Итог дня — team change today (sumDayDelta, kg)
-2. 👥 Кто отметился — list each person from submitted with their dayDelta in kg (e.g. "• Name −0.5 кг"); keep icons in names
-3. 🚫 Пропустили — list names from missing (only if any)
-4. 🏅 Новые ачивки сегодня — from achievementLines (only if present)
-5. 💔 Прервали серию — from brokenLines (only if present)
-6. 👑 Лидер дня — leader.name and leader.dayDelta (kg). Skip if leader missing.
-7. ⚖️ Аналогия — compare sumDayDelta to a common object
-8. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
-9. 🔬 Факт дня — one short science fact
-10. 😄 Шутка — one light joke
+OUTPUT: strictly one JSON object, no markdown, no extra text:
+${RESPONSE_FORMAT_WITH_MEME}`;
+}
 
-FORMATTING:
-- Start each section with emoji + title. One blank line between sections. Use • for list items.
-- Short paragraphs, no tables. Concise, motivational, slightly playful tone.
+function monthlyPrompt(absKg: number): string {
+  return `You write the MONTHLY Telegram post for a team weight-loss challenge. It is always about ONE MONTH — say "за месяц".
 
-Return only the JSON object, no markdown or extra text.`;
+Use ONLY the data from the input JSON — never invent numbers or names.
 
-const WEEKLY_REPORT_PROMPT = `You generate WEEKLY Telegram reports for a team weight-loss challenge. This report is always about ONE WEEK (неделя). Never use "month" or "месяц".
+DATA YOU GET:
+- date — end of the month
+- sumDayDelta — total team change for the month (kg). Negative = lost, positive = gained
+- submitted — people who weighed this month: name (may include an icon), dayDelta (their month change, kg)
+- missing — people who did not weigh this month
+- leader — champion of the month { name, dayDelta }, if any
+- crownHolderName — current crown holder (if present, mention it warmly near the champion)
+- goalsInfo / goalRemaining / goalPercent — progress toward personal goals, if set
 
-INPUT: JSON with statistics for the week. Use ONLY the data from input; do not invent numbers or names.
+WHAT TO COVER (naturally, in your own words — not a fixed list of headed sections):
+- The headline: the team's month (sumDayDelta), always "за месяц".
+- The champion of the month, if present; mention the crown holder if given.
+- Who checked in, each with their month delta as "• Имя ±X кг". Keep icons in names.
+- Who missed the month (only if anyone did) — light tone.
+- ${analogySection(absKg)}
+- Goal progress, only if goalsInfo is present.
+- Optionally close with one short fun fact or joke — only if it fits.
 
-AVAILABLE DATA:
-- date — report date / end of week (display as-is or format nicely)
-- sumDayDelta — total team weight change for the week (kg). Negative = lost, positive = gained
-- countSubmitted, countMissing — optional for phrasing
-- leader — optional. { name, dayDelta } = pre-computed Champion of the week (best negative week delta). Use leader.name and leader.dayDelta. Skip Champion section if leader missing.
-- crownHolderName — optional. Name of the person who will wear the crown for the coming week (same as leader). If present, add: "Корону на эту неделю носит [crownHolderName]." in or right after the Champion section.
-- submitted — array of who weighed this week. Each item: name (may include achievement icon, e.g. "Вася 🔸"), dayDelta (week delta in kg). List each with their dayDelta when present (e.g. "• Вася 🔸 −0.5 кг"); keep icons in names; skip delta only if dayDelta is null.
-- missing — names of who did not weigh this week (skip section if empty)
-- goalsInfo — optional. For "Прогресс по целям" use remaining, percent, totalLost from submitted[].totalDelta. Skip if missing or empty.
+${VOICE}
 
-OUTPUT: Strictly return a single JSON object with the format:
-${RESPONSE_FORMAT_WITH_MEME}
+OUTPUT: strictly one JSON object, no markdown, no extra text:
+${RESPONSE_FORMAT_WITH_MEME}`;
+}
 
-Write the message in Russian. CRITICAL: meme.object must be the EXACT SAME phrase as the object you name in the Analogy section — one object, same words in both the message text and in meme.object.
-
-STRUCTURE:
-
-1. 📊 Итоги недели
-Summarize the total team change for the week using sumDayDelta. Always say "за неделю".
-
-2. 👑 Чемпион недели
-Use leader.name and leader.dayDelta. If crownHolderName is present, add: Корону на эту неделю носит [crownHolderName]. Skip if leader missing.
-
-3. 👥 Кто отметился
-List submitted participants with their weekly delta in kg (e.g. "• Name −0.5 кг"); keep icons in names.
-
-4. 🚫 Пропустили
-List names from missing if any.
-
-5. ⚖️ Аналогия
-${ANALOGY_SECTION}
-
-6. 🎯 Прогресс по целям
-Summarize goal progress from goalsInfo if present. Skip if no goals.
-
-7. 🔬 Факт недели
-One short scientific fact about health, metabolism, sleep, or nutrition.
-
-8. 😄 Шутка
-Short friendly joke related to weight loss or food.
-
-STYLE: concise, friendly, motivational, slightly humorous, Telegram style.
-
-FORMAT: Each section 1–3 sentences. Separate sections (and separate sentences within sections) with a blank line. Use bullet • for lists.
-en
-Return only the JSON object, no markdown or extra text.`;
-
-const MONTHLY_REPORT_PROMPT = `You generate MONTHLY Telegram reports for a team weight-loss challenge. This report is always about ONE MONTH (месяц).
-
-INPUT: JSON with statistics for the month. Use ONLY the data from this input; do not invent numbers or names.
-
-AVAILABLE DATA:
-- date — report date / end of month (display as-is or format nicely)
-- sumDayDelta — total team weight change for the month (kg). Sum of each participant's month delta. Negative = lost, positive = gained
-- countSubmitted, countMissing — number of people who weighed this month / who missed (optional for phrasing)
-- leader — optional. If present: { name, dayDelta } is the pre-computed "Champion of the month" (best negative month delta). Use leader.name and leader.dayDelta in the Champion section. If leader is missing, skip the Champion section or write one short neutral line.
-- crownHolderName — optional. Name of the user who currently wears the weekly crown. If present, add one line after Champion (or in it): "Корону теперь носит [crownHolderName]."
-- submitted — array of who weighed this month. Each item: name (may include achievement icon, e.g. "Вася 🔸"), dayDelta (weight change for the month, kg; negative = lost), totalDelta, goalRemaining, goalPercent, goalReached. In "Кто отметился" list each person with their dayDelta when present (e.g. "• Вася 🔸 −1.2 кг"); skip delta only if dayDelta is null.
-- missing — names of who did not weigh this month (skip section if empty)
-- goalsInfo — optional array: name, remaining (kg to goal), percent, reached. For "Progress to goal" use remaining and totalLost from submitted[].totalDelta. Skip section if goalsInfo is missing or empty.
-
-OUTPUT: Strictly a single JSON object (this shape only):
-${RESPONSE_FORMAT_WITH_MEME}
-
-You MUST include the "meme" field with "object". CRITICAL: meme.object must be the EXACT SAME phrase as the object you name in the Analogy section — one object, same words in both the message text and in meme.object. The message must be one string containing all sections below, in order. Write in Russian.
-
-STRUCTURE (keep each section 1–3 sentences; separate sections with a blank line; use bullet • for lists):
-
-1. 📊 Итоги месяца — total team change for THE MONTH (sumDayDelta, kg). Say "месяц" / "за месяц".
-2. 👑 Чемпион месяца — leader.name and leader.dayDelta (kg). If crownHolderName is present, add: Корону теперь носит [crownHolderName]. Skip if leader missing.
-3. 👥 Кто отметился — list each person from submitted with their month delta in kg (e.g. "• Name −1.2 кг"); keep icons in names
-4. 🚫 Пропустили — list names from missing (only if any)
-5. ⚖️ Аналогия
-${ANALOGY_SECTION}
-
-6. 🎯 Прогресс по целям — from goalsInfo/submitted. Skip if no goals
-7. 🔬 Факт месяца — one short science fact
-8. 😄 Шутка — one light joke
-
-FORMATTING:
-- Start each section with emoji + title. One blank line between sections. Use • for list items.
-- Short paragraphs, no tables. Concise, motivational tone.
-
-Return only the JSON object, no markdown or extra text.`;
-
-function getSystemPrompt(kind: ReportPayload["kind"]): string {
-  switch (kind) {
-    case "daily":
-      return DAILY_REPORT_PROMPT;
+function getSystemPrompt(payload: ReportPayload): string {
+  const absKg = Math.abs(payload.sumDayDelta);
+  switch (payload.kind) {
     case "weekly":
-      return WEEKLY_REPORT_PROMPT;
+      return weeklyPrompt(absKg);
     case "monthly":
-      return MONTHLY_REPORT_PROMPT;
+      return monthlyPrompt(absKg);
+    case "daily":
     default:
-      return DAILY_REPORT_PROMPT;
+      return dailyPrompt(absKg);
   }
 }
 
@@ -324,7 +282,7 @@ export async function humanizeReport(
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: "system", content: getSystemPrompt(payload.kind) },
+          { role: "system", content: getSystemPrompt(payload) },
           { role: "user", content: userContent },
         ],
         temperature: 0.85,

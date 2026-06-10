@@ -1,7 +1,5 @@
 import { Env } from "../../types";
-import { sendMessage } from "../../telegram/api";
 import { getSetting, setCrownUserId } from "../../db/settings";
-import { RU } from "../../i18n";
 import { buildDailyPayload } from "./payload-daily";
 import { buildWeeklyPayload } from "./payload-weekly";
 import { buildMonthlyPayload } from "./payload-monthly";
@@ -21,14 +19,8 @@ export async function generateDailyReport(
   if (!chatId) return;
 
   const payload = await buildDailyPayload(env);
-  if (!payload) {
-    await sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      chatId,
-      RU.report_no_entries_today,
-    );
-    return;
-  }
+  // Nobody checked in → stay silent (no "никто не отметился" spam).
+  if (!payload) return;
 
   await sendReport(env, chatId, payload);
 }
@@ -42,14 +34,8 @@ export async function generateWeeklyReport(
   if (!chatId) return;
 
   const payload = await buildWeeklyPayload(env);
-  if (!payload) {
-    await sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      chatId,
-      RU.report_no_entries_week,
-    );
-    return;
-  }
+  // Nobody weighed this week → stay silent.
+  if (!payload) return;
 
   await sendReport(env, chatId, payload);
   const newCrownUserId = payload.leader?.userId ?? null;
@@ -65,14 +51,8 @@ export async function generateMonthlyReport(
   if (!chatId) return;
 
   const payload = await buildMonthlyPayload(env);
-  if (!payload) {
-    await sendMessage(
-      env.TELEGRAM_BOT_TOKEN,
-      chatId,
-      RU.report_no_entries_month,
-    );
-    return;
-  }
+  // Nobody weighed this month → stay silent.
+  if (!payload) return;
 
   await sendReport(env, chatId, payload);
 }
