@@ -1,6 +1,6 @@
 import { Env, TelegramUpdate, TelegramMessage } from "./types";
 import { APP_VERSION, WEIGHT_MIN, WEIGHT_MAX } from "./config";
-import { parseWeight, isPrivateChat, isPendingActionExpired, getTodayDate, isOwner } from "./utils";
+import { parseWeight, isPrivateChat, isPendingActionExpired, getTodayDate, isOwner, getCurrentHourInTz } from "./utils";
 import { RU } from "./i18n";
 import { sendMessage } from "./telegram/api";
 import { ensureUser } from "./db/users";
@@ -75,6 +75,27 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
         await clearPendingAction(env.DB, userId);
         await handleHeightInput(env, message.chat.id, userId, text);
         return new Response("OK");
+      } else if (pendingAction.action === "set_reminder_hour") {
+        const { handleReminderHourInput } = await import("./handlers/settings-user");
+        await clearPendingAction(env.DB, userId);
+        await handleReminderHourInput(env, message.chat.id, userId, text);
+        return new Response("OK");
+      } else if (pendingAction.action === "season_setup" && isOwner(userId, env.OWNER_USER_ID)) {
+        const { parseSeasonSetup } = await import("./helpers/season");
+        const { createSeason } = await import("./db/seasons");
+        const { addDays } = await import("./utils");
+        const setup = parseSeasonSetup(text);
+        if (!setup) {
+          return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, RU.season_setup_invalid);
+        }
+        await clearPendingAction(env.DB, userId);
+        const today = getTodayDate();
+        await createSeason(env.DB, setup.name, today, addDays(today, setup.days), setup.goalKg);
+        return sendMessage(
+          env.TELEGRAM_BOT_TOKEN,
+          message.chat.id,
+          RU.season_created(setup.name, setup.days),
+        );
       } else if (pendingAction.action === "debug_meme" && isOwner(userId, env.OWNER_USER_ID)) {
         const delta = parseFloat(text.replace(",", "."));
         if (!isNaN(delta) && delta >= -50 && delta <= 50) {
@@ -319,10 +340,12 @@ export default {
     const today = getTodayDate();
     
     try {
-      if (event.cron === "0 8 * * *") {
+      if (event.cron === "0 * * * *") {
+        // Hourly: remind users whose personal reminder hour is the current local hour.
+        const hour = getCurrentHourInTz();
         logJobStart("reminders");
-        await withJobLock(env, "reminders", today, async () => {
-          const stats = await runReminders(env);
+        await withJobLock(env, "reminders", `${today}-h${hour}`, async () => {
+          const stats = await runReminders(env, hour);
           logJobFinish("reminders", stats);
         });
       } else if (event.cron === "0 16 * * SUN") {

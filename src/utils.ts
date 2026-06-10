@@ -42,6 +42,17 @@ export function isSunday(dateStr: string): boolean {
   return getDayOfWeek(dateStr) === 0;
 }
 
+/** Current hour (0-23) in the bot's timezone (Asia/Nicosia). */
+export function getCurrentHourInTz(): number {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    hour12: false,
+  });
+  // en-GB 2-digit hour can render "24" at midnight; normalize to 0-23.
+  return parseInt(formatter.format(new Date()), 10) % 24;
+}
+
 /** Returns dateStr (YYYY-MM-DD) shifted by `days` (can be negative). */
 export function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T12:00:00.000Z");

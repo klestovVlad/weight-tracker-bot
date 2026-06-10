@@ -6,9 +6,12 @@ export interface UserSettings {
   weigh_frequency: WeighFrequency | null;
   height_cm: number | null;
   digest_enabled: number | null;
+  reminder_hour: number | null;
   created_at: string;
   updated_at: string;
 }
+
+export const DEFAULT_REMINDER_HOUR = 11;
 
 export async function getUserSettings(
   db: D1Database,
@@ -119,6 +122,32 @@ export async function setDigestEnabled(
          updated_at = datetime('now')`
     )
     .bind(userId, enabled ? 1 : 0)
+    .run();
+}
+
+export async function getReminderHour(
+  db: D1Database,
+  userId: number
+): Promise<number> {
+  const settings = await getUserSettings(db, userId);
+  const h = settings?.reminder_hour;
+  return h == null ? DEFAULT_REMINDER_HOUR : h;
+}
+
+export async function setReminderHour(
+  db: D1Database,
+  userId: number,
+  hour: number
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO user_settings (user_id, reminder_hour, created_at, updated_at)
+       VALUES (?, ?, datetime('now'), datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         reminder_hour = excluded.reminder_hour,
+         updated_at = datetime('now')`
+    )
+    .bind(userId, hour)
     .run();
 }
 

@@ -9,7 +9,7 @@ import {
   getLastWeight,
 } from "../db/weights";
 import { getGoal, computeGoalProgress } from "../db/goals";
-import { isOnVacation, getWeighFrequency, type WeighFrequency } from "../db/user-settings";
+import { isOnVacation, getWeighFrequency, getReminderHour, type WeighFrequency } from "../db/user-settings";
 import { logError } from "../helpers/logging";
 import { RU } from "../i18n";
 import { pickReminderKind, type ReminderContext } from "../helpers/reminder-text";
@@ -92,7 +92,15 @@ async function markReminderSent(
     .run();
 }
 
-export async function runReminders(env: Env): Promise<ReminderStats> {
+/**
+ * Sends due reminders. When `hourFilter` is given (hourly cron), only users
+ * whose personal reminder hour equals it are considered; when omitted (manual
+ * debug run), hour is ignored.
+ */
+export async function runReminders(
+  env: Env,
+  hourFilter?: number,
+): Promise<ReminderStats> {
   const stats: ReminderStats = { sent: 0, skipped: 0, errors: 0 };
   const today = getTodayDate();
 
@@ -100,6 +108,14 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
 
   for (const user of users) {
     try {
+      if (hourFilter !== undefined) {
+        const hour = await getReminderHour(env.DB, user.user_id);
+        if (hour !== hourFilter) {
+          stats.skipped++;
+          continue;
+        }
+      }
+
       const onVacation = await isOnVacation(env.DB, user.user_id, today);
       if (onVacation) {
         stats.skipped++;

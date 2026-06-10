@@ -10,10 +10,16 @@ Telegram bot for tracking weight with privacy-first design. Built on Cloudflare 
 - **Daily entries** — one weight per day, overwrites if updated
 - **Timezone support** — Asia/Nicosia timezone for date calculation
 - **Scheduled reports** — daily (Mon-Sat) and weekly (Sunday) group reports at 19:00 Asia/Nicosia
-- **AI-powered reports** — OpenAI generates friendly intro/outro for group reports (optional)
-- **Meme image (weekly/monthly)** — GPT chooses a comparison object; optional meme image sent before report when `memes_enabled` is on (with validation and fallback)
-- **Daily reminders** — private reminder at 11:00 Asia/Nicosia for users who haven't logged weight
-- **Streak achievements** — levels (🔹→👑), new-achievement and broken-streak announcements in daily report, weekly hero, personal achievements screen (🏅 Мои ачивки)
+- **AI-powered reports** — OpenAI writes the group report in a natural voice (optional)
+- **Meme image + team chart (weekly/monthly)** — a weight-matched mascot meme and a privacy-safe per-participant delta chart; both toggleable in the admin ⚙️ settings
+- **Cumulative analogy** — the meme/analogy compares the team's *total* weight lost to a real object of that weight
+- **Smart reminders** — personalized per user (protect a streak, close-to-goal, comeback, onboarding) at each user's chosen hour (default 11:00 Asia/Nicosia)
+- **Weekly personal digest** — opt-out DM with your week delta, BMI, streak and goal forecast
+- **BMI** — set your height in ⚙️ Настройки to see BMI in `/me`
+- **Goal forecast** — estimated date to reach your goal at the current pace
+- **Streak achievements & loss badges** — streak levels (🔹→👑) and total-loss badges (🥉 −3 кг → 👑 −30 кг)
+- **Seasons** — owner-run team challenges with a banner in group reports
+- **Admin panel** — dashboard (participation, drop-offs, cron status), settings toggles, on-demand reports, ping dropped users
 
 ## Privacy
 
@@ -297,9 +303,10 @@ The group receives messages only via:
 
 ## Напоминалки
 
-- Отправляются ежедневно в 11:00 Asia/Nicosia
-- Только в личные сообщения
-- Только пользователям, которые не внесли вес сегодня
+- Отправляются ежедневно в выбранный пользователем час (по умолчанию 11:00 Asia/Nicosia; меняется в ⚙️ Настройки → ⏰ Время напоминания)
+- Крон запускается ежечасно и шлёт только тем, у кого настал их час
+- Текст персонализирован: защита серии / близко к цели / возвращение / онбординг
+- Только в личные сообщения, только тем, кто не внёс вес сегодня
 - Пользователь должен сначала написать боту `/start`
 - Debug команда: `/debug_run_reminders` (owner only)
 

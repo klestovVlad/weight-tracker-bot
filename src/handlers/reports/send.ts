@@ -6,6 +6,9 @@ import { humanizeReport } from "../../openai";
 import { pickMemeObject, headlineDeltaKg } from "../../helpers/meme";
 import { buildTeamChartUrl } from "../../helpers/team-chart";
 import { getStickerImageUrl } from "../../helpers/sticker-image";
+import { getActiveSeason } from "../../db/seasons";
+import { computeSeasonProgress } from "../../helpers/season";
+import { getTodayDate } from "../../utils";
 import { logError } from "../../helpers/logging";
 
 export async function sendReport(
@@ -18,9 +21,21 @@ export async function sendReport(
 
   const withImages = payload.kind === "weekly" || payload.kind === "monthly";
 
-  // Report text first.
+  // Report text first, with a season banner on top if a challenge is running.
   if (!message.trim()) return;
-  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, message, {
+  let fullMessage = message;
+  const today = getTodayDate();
+  const season = await getActiveSeason(env.DB, today);
+  if (season) {
+    const progress = await computeSeasonProgress(env, season, today);
+    const banner = RU.season_banner(
+      season.name,
+      progress.daysLeft,
+      progress.teamLostKg.toFixed(1),
+    );
+    fullMessage = `${banner}\n\n${message}`;
+  }
+  await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, fullMessage, {
     parse_mode: "HTML",
   });
 
