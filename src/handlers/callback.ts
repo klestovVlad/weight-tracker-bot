@@ -37,6 +37,12 @@ export async function handleCallbackQuery(
   const isPrivate = message.chat.type === "private";
   const isOwnerUser = isOwner(userId, env.OWNER_USER_ID);
 
+  // Dynamic: toggle a feature flag from the settings menu.
+  if (data?.startsWith("owner_flag_")) {
+    const key = data.slice("owner_flag_".length);
+    return admin.handleToggleFlag(env, message.chat.id, isOwnerUser, isPrivate, key);
+  }
+
   switch (data) {
     case "menu_enter_weight":
       return handleEnterWeight(env, message.chat.id, userId, isPrivate);
@@ -167,8 +173,8 @@ export async function handleCallbackQuery(
     case "owner_day_status":
       return admin.handleOwnerDayStatus(env, message.chat.id, isOwnerUser, isPrivate);
 
-    case "owner_toggle_memes":
-      return admin.handleToggleMemes(env, message.chat.id, isOwnerUser, isPrivate);
+    case "owner_settings_menu":
+      return admin.handleOwnerSettingsMenu(env, message.chat.id, isOwnerUser, isPrivate);
 
     case "owner_send_report_menu":
       return admin.handleOwnerReportDestMenu(env, message.chat.id, isOwnerUser, isPrivate);

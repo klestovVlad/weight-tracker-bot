@@ -43,10 +43,12 @@ export const RU = {
   btn_admin_day_status: "📋 Статус дня",
   btn_admin_send_report: "📣 Отправить отчёт",
   btn_admin_debug_meme: "🔧 Тест мем",
-  btn_admin_memes_on: "🖼 Мемы: ВКЛ",
-  btn_admin_memes_off: "🖼 Мемы: ВЫКЛ",
-  admin_memes_toggled: (enabled: boolean) =>
-    enabled ? "🖼 Мемы включены" : "🖼 Мемы выключены",
+  btn_admin_settings: "⚙️ Настройки",
+  admin_settings_title: "⚙️ Настройки\n\nНажми, чтобы переключить:",
+  admin_flag_button: (label: string, on: boolean) =>
+    `${label}: ${on ? "ВКЛ ✅" : "ВЫКЛ ⬜️"}`,
+  admin_flag_toggled: (label: string, on: boolean) =>
+    `${label} — ${on ? "включено ✅" : "выключено ⬜️"}`,
 
   // Admin dashboard (names and counts only — never weights)
   admin_dashboard_title: "📊 Дашборд",
