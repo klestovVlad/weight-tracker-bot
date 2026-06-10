@@ -70,12 +70,19 @@ npm run migrate:remote   # applies every pending migration in order
 ```
 
 **Adopting the runner on a database whose migrations were already applied by
-hand** (one-time baseline — marks existing files as applied without re-running
-them):
+hand** (one-time baseline — marks the already-applied files as applied without
+re-running them, then runs anything newer). Pass the last file that was applied
+manually so newer migrations still run:
 
 ```bash
-npm run migrate:baseline
+# e.g. 0001–0009 were applied by hand; 0010+ are new and must actually run:
+node scripts/migrate.mjs --remote --baseline 0009_weigh_frequency.sql
+npm run migrate:remote   # applies 0010, 0011, ...
 ```
+
+`npm run migrate:baseline` (no filename) marks ALL files as applied without
+running them — only use it when every migration in the repo has truly already
+been applied.
 
 Check state any time with:
 

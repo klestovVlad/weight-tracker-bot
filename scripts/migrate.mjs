@@ -9,10 +9,13 @@
 //   node scripts/migrate.mjs --local            apply pending to local DB
 //   node scripts/migrate.mjs --remote           apply pending to remote DB
 //   node scripts/migrate.mjs --remote --status  show applied / pending, run nothing
-//   node scripts/migrate.mjs --remote --baseline mark ALL current files as applied
-//                                                 WITHOUT running them — use once when
-//                                                 adopting this runner on a DB whose
-//                                                 migrations were already applied by hand.
+//   node scripts/migrate.mjs --remote --baseline [name.sql]
+//        Mark migrations as applied WITHOUT running them — use once when adopting
+//        this runner on a DB whose migrations were already applied by hand.
+//        With a filename argument, only files up to AND INCLUDING it are baselined
+//        (later, genuinely-new migrations stay pending and run normally). Without
+//        an argument, ALL pending files are baselined (only safe on a DB where
+//        every migration file has truly already been applied).
 //
 // npm aliases: migrate:local, migrate:remote, migrate:status, migrate:baseline
 
@@ -28,7 +31,11 @@ const BINDING = "DB";
 const args = process.argv.slice(2);
 const scope = args.includes("--remote") ? "--remote" : args.includes("--local") ? "--local" : null;
 const isStatus = args.includes("--status");
-const isBaseline = args.includes("--baseline");
+const baselineIdx = args.indexOf("--baseline");
+const isBaseline = baselineIdx !== -1;
+// Optional filename right after --baseline: baseline only up to & including it.
+const baselineTo =
+  isBaseline && args[baselineIdx + 1]?.endsWith(".sql") ? args[baselineIdx + 1] : null;
 
 if (!scope) {
   console.error("Specify --local or --remote.");
@@ -93,14 +100,29 @@ if (pending.length === 0) {
 }
 
 if (isBaseline) {
-  console.log(`\nBaselining ${pending.length} migration(s) as applied (NOT running SQL):`);
-  for (const f of pending) {
+  if (baselineTo && !files.includes(baselineTo)) {
+    console.error(`Baseline target not found: ${baselineTo}`);
+    process.exit(1);
+  }
+  const toMark = baselineTo ? pending.filter((f) => f <= baselineTo) : pending;
+  console.log(
+    `\nBaselining ${toMark.length} migration(s) as applied (NOT running SQL)` +
+      (baselineTo ? ` up to ${baselineTo}` : "") +
+      ":",
+  );
+  for (const f of toMark) {
     exec(
       `INSERT OR IGNORE INTO schema_migrations (name, applied_at) VALUES ('${f}', '${new Date().toISOString()}');`,
     );
     console.log(`  ✓ marked ${f}`);
   }
-  console.log("\nBaseline complete. Future migrations will run normally.");
+  const stillPending = pending.filter((f) => !toMark.includes(f));
+  console.log(
+    `\nBaseline complete.` +
+      (stillPending.length
+        ? ` ${stillPending.length} migration(s) still pending — run migrate:remote to apply them.`
+        : " Future migrations will run normally."),
+  );
   process.exit(0);
 }
 
