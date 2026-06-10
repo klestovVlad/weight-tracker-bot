@@ -63,8 +63,8 @@ const WEIGHT_BUCKETS: WeightBucket[] = [
   { maxKg: Infinity, objects: ["холодильник", "мешок цемента на сорок кило", "офисный стол", "мотоцикл"] },
 ];
 
-/** Returns the object pool for the bucket matching `kg` (absolute value). */
-function bucketForWeight(kg: number): string[] {
+/** Returns the object pool for the bucket matching `kg` (absolute value). Exported for tests. */
+export function bucketForWeight(kg: number): string[] {
   const abs = Math.abs(kg);
   const bucket = WEIGHT_BUCKETS.find((b) => abs <= b.maxKg) ?? WEIGHT_BUCKETS[WEIGHT_BUCKETS.length - 1];
   return bucket.objects;

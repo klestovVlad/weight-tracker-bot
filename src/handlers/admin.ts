@@ -1,7 +1,8 @@
 import { Env, InlineKeyboardMarkup } from "../types";
 import { sendMessage } from "../telegram/api";
 import { RU } from "../i18n";
-import { getSetting, setSetting } from "../db/settings";
+import { getSetting, getBoolFlag, setBoolFlag } from "../db/settings";
+import { FEATURE_FLAGS, getFlagDef } from "../config";
 import { getAllUsers } from "../db/users";
 import {
   getUsersWithWeightOnDate,
@@ -29,30 +30,20 @@ function isAuthorized(isOwnerUser: boolean, isPrivate: boolean): boolean {
   return isOwnerUser && isPrivate;
 }
 
-/** Memes are on unless explicitly disabled (setting "memes_enabled" === "false"). */
-async function areMemesEnabled(env: Env): Promise<boolean> {
-  return (await getSetting(env.DB, "memes_enabled")) !== "false";
-}
-
-function adminMenuKeyboard(memesEnabled: boolean): InlineKeyboardMarkup {
-  return {
-    inline_keyboard: [
-      [
-        { text: RU.btn_admin_dashboard, callback_data: "owner_dashboard" },
-        { text: RU.btn_admin_day_status, callback_data: "owner_day_status" },
-      ],
-      [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
-      [
-        {
-          text: memesEnabled ? RU.btn_admin_memes_on : RU.btn_admin_memes_off,
-          callback_data: "owner_toggle_memes",
-        },
-        { text: RU.btn_admin_debug_meme, callback_data: "owner_debug_meme" },
-      ],
-      [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+const adminMenuKeyboard: InlineKeyboardMarkup = {
+  inline_keyboard: [
+    [
+      { text: RU.btn_admin_dashboard, callback_data: "owner_dashboard" },
+      { text: RU.btn_admin_day_status, callback_data: "owner_day_status" },
     ],
-  };
-}
+    [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
+    [
+      { text: RU.btn_admin_settings, callback_data: "owner_settings_menu" },
+      { text: RU.btn_admin_debug_meme, callback_data: "owner_debug_meme" },
+    ],
+    [{ text: RU.btn_back, callback_data: "menu_back_main" }],
+  ],
+};
 
 export async function handleOwnerAdminMenu(
   env: Env,
@@ -62,13 +53,29 @@ export async function handleOwnerAdminMenu(
 ): Promise<Response> {
   if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
 
-  const memesEnabled = await areMemesEnabled(env);
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_menu_title, {
-    reply_markup: adminMenuKeyboard(memesEnabled),
+    reply_markup: adminMenuKeyboard,
   });
 }
 
-export async function handleToggleMemes(
+/** Builds the settings menu: one toggle per registered feature flag. */
+async function buildSettingsKeyboard(env: Env): Promise<InlineKeyboardMarkup> {
+  const rows = await Promise.all(
+    FEATURE_FLAGS.map(async (flag) => {
+      const on = await getBoolFlag(env.DB, flag.key, flag.default);
+      return [
+        {
+          text: RU.admin_flag_button(flag.label, on),
+          callback_data: `owner_flag_${flag.key}`,
+        },
+      ];
+    }),
+  );
+  rows.push([{ text: RU.btn_back, callback_data: "owner_admin_menu" }]);
+  return { inline_keyboard: rows };
+}
+
+export async function handleOwnerSettingsMenu(
   env: Env,
   chatId: number,
   isOwnerUser: boolean,
@@ -76,11 +83,32 @@ export async function handleToggleMemes(
 ): Promise<Response> {
   if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
 
-  const next = !(await areMemesEnabled(env));
-  await setSetting(env.DB, "memes_enabled", next ? "true" : "false");
-  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_memes_toggled(next), {
-    reply_markup: adminMenuKeyboard(next),
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_settings_title, {
+    reply_markup: await buildSettingsKeyboard(env),
   });
+}
+
+export async function handleToggleFlag(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+  key: string,
+): Promise<Response> {
+  if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
+
+  const flag = getFlagDef(key);
+  if (!flag) return OK();
+
+  const next = !(await getBoolFlag(env.DB, flag.key, flag.default));
+  await setBoolFlag(env.DB, flag.key, next);
+
+  return sendMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    chatId,
+    RU.admin_flag_toggled(flag.label, next),
+    { reply_markup: await buildSettingsKeyboard(env) },
+  );
 }
 
 /**

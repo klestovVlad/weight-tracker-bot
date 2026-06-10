@@ -52,17 +52,29 @@ Replace `<YOUR_DATABASE_ID_HERE>` with your actual database ID.
 
 ### 5. Apply Database Migrations
 
+Migrations are tracked in a `schema_migrations` table and applied with a small
+runner, so each one runs exactly once (some use non-idempotent
+`ALTER TABLE ADD COLUMN`).
+
+**Fresh database:**
+
 ```bash
-# Apply all migrations (run in order)
-wrangler d1 execute DB --remote --file=migrations/0001_init.sql
-wrangler d1 execute DB --remote --file=migrations/0002_weights.sql
-wrangler d1 execute DB --remote --file=migrations/0003_pending_actions.sql
-wrangler d1 execute DB --remote --file=migrations/0004_reminders_sent.sql
-wrangler d1 execute DB --remote --file=migrations/0005_reliability.sql
-wrangler d1 execute DB --remote --file=migrations/0006_user_settings.sql
-wrangler d1 execute DB --remote --file=migrations/0007_goals.sql
-wrangler d1 execute DB --remote --file=migrations/0008_memes_enabled.sql
-wrangler d1 execute DB --remote --file=migrations/0009_weigh_frequency.sql
+npm run migrate:remote   # applies every pending migration in order
+# (use migrate:local for the local dev DB)
+```
+
+**Adopting the runner on a database whose migrations were already applied by
+hand** (one-time baseline — marks existing files as applied without re-running
+them):
+
+```bash
+npm run migrate:baseline
+```
+
+Check state any time with:
+
+```bash
+npm run migrate:status
 ```
 
 ### 6. Set Secrets
@@ -327,13 +339,19 @@ The group receives messages only via:
 │   │       ├── payload-daily.ts
 │   │       ├── payload-weekly.ts
 │   │       └── payload-monthly.ts
+│   ├── handlers/
+│   │   └── admin.ts          # Owner admin panel (dashboard, settings, reports)
 │   └── helpers/
 │       ├── job-lock.ts       # Idempotent job execution
 │       ├── rate-limit.ts     # Anti-spam rate limiting
 │       ├── stats.ts          # Stats/sparkline helpers
-│       ├── meme.ts           # Meme object selection/validation
+│       ├── meme.ts           # Weight-matched comparison objects + validation
 │       ├── sticker-image.ts  # Meme/sticker image generation
 │       └── logging.ts        # Structured logging
+├── scripts/
+│   └── migrate.mjs           # Migration runner (tracks schema_migrations)
+├── test/                     # Vitest unit tests (pure functions)
+├── .github/workflows/ci.yml  # CI: typecheck + tests on every PR
 ├── migrations/
 │   ├── 0001_init.sql
 │   ├── 0002_weights.sql
@@ -377,6 +395,9 @@ The group receives messages only via:
 **rate_limits** — Anti-spam rate limiting
 - `user_id`, `key` (PRIMARY KEY)
 - `window_start`, `count`
+
+**schema_migrations** — Applied migration tracking (managed by `scripts/migrate.mjs`)
+- `name` (TEXT, PRIMARY KEY), `applied_at`
 
 ## Reliability
 

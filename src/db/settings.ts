@@ -17,6 +17,26 @@ export async function setSetting(db: D1Database, key: string, value: string): Pr
     .run();
 }
 
+/** Reads a boolean feature flag. Stored as "true"/"false"; missing → `defaultValue`. */
+export async function getBoolFlag(
+  db: D1Database,
+  key: string,
+  defaultValue: boolean,
+): Promise<boolean> {
+  const raw = await getSetting(db, key);
+  if (raw == null) return defaultValue;
+  return raw === "true";
+}
+
+/** Writes a boolean feature flag as "true"/"false". */
+export async function setBoolFlag(
+  db: D1Database,
+  key: string,
+  value: boolean,
+): Promise<void> {
+  await setSetting(db, key, value ? "true" : "false");
+}
+
 const CROWN_USER_ID_KEY = "crown_user_id";
 
 export async function getCrownUserId(db: D1Database): Promise<number | null> {

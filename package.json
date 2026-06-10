@@ -5,13 +5,19 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "env -u npm_config_devdir WRANGLER_LOG=warn WRANGLER_LOG_PATH=.wrangler-logs wrangler deploy",
-    "migrate:local": "wrangler d1 execute DB --local --file=migrations/0001_init.sql",
-    "migrate:remote": "wrangler d1 execute DB --remote --file=migrations/0001_init.sql",
+    "migrate:local": "node scripts/migrate.mjs --local",
+    "migrate:remote": "node scripts/migrate.mjs --remote",
+    "migrate:status": "node scripts/migrate.mjs --remote --status",
+    "migrate:baseline": "node scripts/migrate.mjs --remote --baseline",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "types": "wrangler types"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240129.0",
     "typescript": "^5.3.3",
+    "vitest": "^2.1.8",
     "wrangler": "^4.71.0"
   },
   "dependencies": {
