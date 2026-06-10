@@ -42,6 +42,13 @@ export function isSunday(dateStr: string): boolean {
   return getDayOfWeek(dateStr) === 0;
 }
 
+/** Returns dateStr (YYYY-MM-DD) shifted by `days` (can be negative). */
+export function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T12:00:00.000Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Whole days between two date strings (YYYY-MM-DD); positive if `to` is after `from`. */
 export function getDaysBetween(fromStr: string, toStr: string): number {
   const from = new Date(fromStr + "T12:00:00.000Z").getTime();
@@ -158,8 +165,11 @@ export function createMainMenu(isOwnerUser: boolean, isGroup: boolean): InlineKe
       { text: RU.btn_achievements, callback_data: "menu_my_achievements" },
       { text: RU.btn_vacation, callback_data: "menu_vacation" }
     ]);
+    keyboard.push([
+      { text: RU.btn_frequency, callback_data: "menu_frequency" },
+      { text: RU.btn_settings, callback_data: "menu_settings" },
+    ]);
     keyboard.push([{ text: RU.btn_help, callback_data: "menu_help" }]);
-    keyboard.push([{ text: RU.btn_frequency, callback_data: "menu_frequency" }]);
   }
 
   if (isOwnerUser) {

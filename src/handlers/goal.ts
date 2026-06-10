@@ -3,9 +3,16 @@ import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
 import { RU } from "../i18n";
 import { sendMessage, answerCallbackQuery, editMessageText } from "../telegram/api";
 import { getGoal, upsertGoal, deleteGoal, computeGoalProgress, generateProgressBar } from "../db/goals";
-import { getLastWeight } from "../db/weights";
+import { getLastWeight, getWeightHistory } from "../db/weights";
 import { setPendingAction, clearPendingAction } from "../db/pending-actions";
-import { parseWeight } from "../utils";
+import { parseWeight, getTodayDate } from "../utils";
+import { forecastGoalDate } from "../helpers/forecast";
+
+/** Formats a YYYY-MM-DD date as DD.MM.YYYY for display. */
+function formatEtaDate(iso: string): string {
+  const [year, month, day] = iso.split("-");
+  return `${day}.${month}.${year}`;
+}
 
 export async function handleGoalMenu(
   env: Env,
@@ -39,6 +46,16 @@ export async function handleGoalMenu(
       } else {
         const bar = generateProgressBar(progress.percent);
         text += RU.goal_progress(progress.percent, bar, progress.remainingKg);
+
+        const history = await getWeightHistory(env.DB, userId, 60);
+        const forecast = forecastGoalDate(
+          history.map((r) => ({ date: r.date, weightKg: r.weight_kg })),
+          goal.target_weight_kg,
+          getTodayDate(),
+        );
+        if (forecast && forecast.daysLeft > 0) {
+          text += RU.goal_forecast(formatEtaDate(forecast.etaDate), forecast.daysLeft);
+        }
       }
     }
   } else {

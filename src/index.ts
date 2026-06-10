@@ -11,6 +11,7 @@ import { handleCallbackQuery } from "./handlers/callback";
 import { generateDailyReport, generateWeeklyReport, generateMonthlyReport, isLastDayOfMonth } from "./handlers/reports";
 import { handleGoalInput } from "./handlers/goal";
 import { runReminders } from "./handlers/reminders";
+import { runWeeklyDigests } from "./handlers/digest";
 import { withJobLock, getWeekKey } from "./helpers/job-lock";
 import { checkRateLimit } from "./helpers/rate-limit";
 import { logInfo, logError, logJobStart, logJobFinish } from "./helpers/logging";
@@ -69,6 +70,11 @@ async function handleMessage(env: Env, message: TelegramMessage): Promise<Respon
         if (handled) {
           return new Response("OK");
         }
+      } else if (pendingAction.action === "set_height") {
+        const { handleHeightInput } = await import("./handlers/settings-user");
+        await clearPendingAction(env.DB, userId);
+        await handleHeightInput(env, message.chat.id, userId, text);
+        return new Response("OK");
       } else if (pendingAction.action === "debug_meme" && isOwner(userId, env.OWNER_USER_ID)) {
         const delta = parseFloat(text.replace(",", "."));
         if (!isNaN(delta) && delta >= -50 && delta <= 50) {
@@ -326,6 +332,23 @@ export default {
           await generateWeeklyReport(env);
           logJobFinish("weekly_report");
         });
+
+        // Personal weekly digests (DM, opt-out) after the group report.
+        logJobStart("weekly_digest");
+        await withJobLock(env, "weekly_digest", weekKey, async () => {
+          const stats = await runWeeklyDigests(env);
+          logJobFinish("weekly_digest", stats);
+        });
+
+        // If the month ends on a Sunday, the Mon-Sat branch never runs — handle it here.
+        if (isLastDayOfMonth(today)) {
+          logJobStart("monthly_report");
+          const monthKey = today.substring(0, 7);
+          await withJobLock(env, "monthly_report", monthKey, async () => {
+            await generateMonthlyReport(env);
+            logJobFinish("monthly_report");
+          });
+        }
       } else if (event.cron === "0 16 * * MON-SAT") {
         logJobStart("daily_report");
         await withJobLock(env, "daily_report", today, async () => {
@@ -341,13 +364,6 @@ export default {
             logJobFinish("monthly_report");
           });
         }
-      } else if (event.cron === "0 16 * * SUN" && isLastDayOfMonth(today)) {
-        logJobStart("monthly_report_sun");
-        const monthKey = today.substring(0, 7);
-        await withJobLock(env, "monthly_report", monthKey, async () => {
-          await generateMonthlyReport(env);
-          logJobFinish("monthly_report");
-        });
       }
     } catch (error) {
       logError("Error in scheduled task", error);
