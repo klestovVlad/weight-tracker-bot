@@ -19,6 +19,11 @@ import { handleGoalMenu, handleGoalSetStart, handleGoalDelete } from "./goal";
 import { handleMyAchievements } from "./achievements";
 import { setWeighFrequency, type WeighFrequency } from "../db/user-settings";
 import * as admin from "./admin";
+import {
+  handleUserSettingsMenu,
+  handleSetHeightStart,
+  handleToggleDigest,
+} from "./settings-user";
 
 export async function handleCallbackQuery(
   env: Env,
@@ -41,6 +46,15 @@ export async function handleCallbackQuery(
   if (data?.startsWith("owner_flag_")) {
     const key = data.slice("owner_flag_".length);
     return admin.handleToggleFlag(env, message.chat.id, isOwnerUser, isPrivate, key);
+  }
+
+  // Dynamic: ping a dropped user from the dashboard.
+  if (data?.startsWith("owner_ping_")) {
+    const targetUserId = parseInt(data.slice("owner_ping_".length), 10);
+    if (!Number.isNaN(targetUserId)) {
+      return admin.handleOwnerPing(env, message.chat.id, isOwnerUser, isPrivate, targetUserId);
+    }
+    return new Response("OK");
   }
 
   switch (data) {
@@ -127,6 +141,13 @@ export async function handleCallbackQuery(
 
     case "menu_my_achievements":
       return handleMyAchievements(env, message.chat.id, userId);
+
+    case "menu_settings":
+      return handleUserSettingsMenu(env, message.chat.id, userId, isPrivate);
+    case "settings_set_height":
+      return handleSetHeightStart(env, message.chat.id, userId, isPrivate);
+    case "settings_toggle_digest":
+      return handleToggleDigest(env, message.chat.id, userId, isPrivate);
 
     case "menu_goal":
       return handleGoalMenuCallback(

@@ -1,7 +1,8 @@
-import { Env, InlineKeyboardMarkup } from "../types";
+import { Env, InlineKeyboardMarkup, InlineKeyboardButton } from "../types";
 import { sendMessage } from "../telegram/api";
 import { RU } from "../i18n";
 import { getSetting, getBoolFlag, setBoolFlag } from "../db/settings";
+import { getRecentJobStatuses } from "../db/cron-runs";
 import { FEATURE_FLAGS, getFlagDef } from "../config";
 import { getAllUsers } from "../db/users";
 import {
@@ -129,13 +130,15 @@ export async function handleOwnerDashboard(
   const allUsers = await getAllUsers(env.DB);
   const userIds = allUsers.map((u) => u.user_id);
 
-  const [todayUsers, weekUsers, vacationIds, goals, overall] = await Promise.all([
-    getUsersWithWeightOnDate(env.DB, today),
-    getUsersWithWeightInRange(env.DB, weekStart, today),
-    getUsersOnVacation(env.DB, today),
-    getGoalsByUserIds(env.DB, userIds),
-    getOverallFirstAndLastByUsers(env.DB, userIds),
-  ]);
+  const [todayUsers, weekUsers, vacationIds, goals, overall, jobs] =
+    await Promise.all([
+      getUsersWithWeightOnDate(env.DB, today),
+      getUsersWithWeightInRange(env.DB, weekStart, today),
+      getUsersOnVacation(env.DB, today),
+      getGoalsByUserIds(env.DB, userIds),
+      getOverallFirstAndLastByUsers(env.DB, userIds),
+      getRecentJobStatuses(env.DB),
+    ]);
 
   const vacationSet = new Set(vacationIds);
 
@@ -146,9 +149,11 @@ export async function handleOwnerDashboard(
       const stats = overall.get(u.user_id);
       if (!stats) return null;
       const days = getDaysBetween(stats.lastDate, today);
-      return days >= DROPPED_OFF_DAYS ? { name: u.display_name, days } : null;
+      return days >= DROPPED_OFF_DAYS
+        ? { userId: u.user_id, name: u.display_name, days }
+        : null;
     })
-    .filter((x): x is { name: string; days: number } => x !== null)
+    .filter((x): x is { userId: number; name: string; days: number } => x !== null)
     .sort((a, b) => b.days - a.days);
 
   const lines: string[] = [
@@ -166,13 +171,63 @@ export async function handleOwnerDashboard(
       : RU.admin_nobody,
   ];
 
-  const keyboard: InlineKeyboardMarkup = {
-    inline_keyboard: [[{ text: RU.btn_back, callback_data: "owner_admin_menu" }]],
-  };
+  if (jobs.length > 0) {
+    lines.push("", RU.admin_dash_jobs_header);
+    for (const j of jobs) {
+      const icon = j.status === "ok" ? "✅" : j.status === "error" ? "❌" : "⏳";
+      const when = j.startedAt.split(" ")[0] ?? j.startedAt;
+      lines.push(RU.admin_dash_job_line(j.job, icon, when));
+    }
+  }
+
+  // Ping buttons for dropped users (Telegram can only DM users who started the bot).
+  const rows: InlineKeyboardButton[][] = dropped
+    .slice(0, 8)
+    .map((d) => [
+      { text: `🔔 ${d.name}`, callback_data: `owner_ping_${d.userId}` },
+    ]);
+  rows.push([{ text: RU.btn_back, callback_data: "owner_admin_menu" }]);
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, lines.join("\n"), {
-    reply_markup: keyboard,
+    reply_markup: { inline_keyboard: rows },
   });
+}
+
+/** Sends a gentle comeback reminder to a specific user (from the dashboard). */
+export async function handleOwnerPing(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+  targetUserId: number,
+): Promise<Response> {
+  if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
+
+  const { getUserDisplayName } = await import("../db/users");
+  const name = await getUserDisplayName(env.DB, targetUserId);
+
+  try {
+    const response = await sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      targetUserId,
+      RU.reminder_comeback,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: RU.btn_enter_weight, callback_data: "menu_enter_weight" }],
+          ],
+        },
+      },
+    );
+    const result = (await response.json()) as { ok: boolean };
+    return sendMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      chatId,
+      result.ok ? RU.admin_ping_sent(name) : RU.admin_ping_failed(name),
+    );
+  } catch {
+    return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.admin_ping_failed(name));
+  }
 }
 
 /**

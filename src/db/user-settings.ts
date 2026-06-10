@@ -4,6 +4,8 @@ export interface UserSettings {
   user_id: number;
   vacation_until: string | null;
   weigh_frequency: WeighFrequency | null;
+  height_cm: number | null;
+  digest_enabled: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +69,72 @@ export async function clearVacation(
   userId: number
 ): Promise<void> {
   await setVacationUntil(db, userId, null);
+}
+
+export async function getHeightCm(
+  db: D1Database,
+  userId: number
+): Promise<number | null> {
+  const settings = await getUserSettings(db, userId);
+  return settings?.height_cm ?? null;
+}
+
+export async function setHeightCm(
+  db: D1Database,
+  userId: number,
+  heightCm: number
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO user_settings (user_id, height_cm, created_at, updated_at)
+       VALUES (?, ?, datetime('now'), datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         height_cm = excluded.height_cm,
+         updated_at = datetime('now')`
+    )
+    .bind(userId, heightCm)
+    .run();
+}
+
+export async function isDigestEnabled(
+  db: D1Database,
+  userId: number
+): Promise<boolean> {
+  const settings = await getUserSettings(db, userId);
+  // Default on: only an explicit 0 disables it.
+  return settings?.digest_enabled !== 0;
+}
+
+export async function setDigestEnabled(
+  db: D1Database,
+  userId: number,
+  enabled: boolean
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO user_settings (user_id, digest_enabled, created_at, updated_at)
+       VALUES (?, ?, datetime('now'), datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         digest_enabled = excluded.digest_enabled,
+         updated_at = datetime('now')`
+    )
+    .bind(userId, enabled ? 1 : 0)
+    .run();
+}
+
+/** Users who should receive the weekly personal digest (opt-out, default on). */
+export async function getUsersForDigest(
+  db: D1Database
+): Promise<Array<{ user_id: number; display_name: string }>> {
+  const result = await db
+    .prepare(
+      `SELECT u.user_id, u.display_name
+       FROM users u
+       LEFT JOIN user_settings s ON u.user_id = s.user_id
+       WHERE COALESCE(s.digest_enabled, 1) = 1`
+    )
+    .all<{ user_id: number; display_name: string }>();
+  return result.results ?? [];
 }
 
 export async function isOnVacation(

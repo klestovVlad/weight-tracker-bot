@@ -5,6 +5,8 @@ import { WEIGHT_MIN, WEIGHT_MAX } from "../config";
 import { RU, formatDeltaRu } from "../i18n";
 import { getSetting, setSetting } from "../db/settings";
 import { getLastWeight, getPreviousWeight, getWeightHistory, saveWeight } from "../db/weights";
+import { getHeightCm } from "../db/user-settings";
+import { computeBmi, bmiCategory } from "../helpers/health";
 import { generateDailyReport, generateWeeklyReport, generateMonthlyReport } from "./reports";
 
 export async function handleStart(
@@ -126,6 +128,13 @@ export async function handleMe(
   if (previousRecord) {
     const delta = lastRecord.weight_kg - previousRecord.weight_kg;
     replyText += "\n" + RU.me_delta(formatDeltaRu(delta), previousRecord.date);
+  }
+
+  const heightCm = await getHeightCm(env.DB, userId);
+  const bmi = computeBmi(lastRecord.weight_kg, heightCm);
+  if (bmi !== null) {
+    const cat = bmiCategory(bmi);
+    replyText += "\n" + RU.me_bmi(bmi.toFixed(1), cat.emoji, cat.label);
   }
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, message.chat.id, replyText);

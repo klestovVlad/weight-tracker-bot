@@ -33,6 +33,8 @@ export const RU = {
   btn_leaderboard: "🏆 Лидерборд",
   btn_achievements: "🏅 Мои ачивки",
   btn_back: "⬅️ Назад",
+  btn_settings: "⚙️ Настройки",
+  settings_user_title: "⚙️ Твои настройки",
   btn_status: "⚙️ Статус",
   btn_setgroup: "👥 Привязать группу",
   btn_admin: "🛠 Админ",
@@ -100,6 +102,38 @@ export const RU = {
     `🔥 У тебя серия ${days} ${pluralDays(days)} подряд — не прерывай! Отметь вес одним числом.`,
   reminder_comeback:
     "👋 Давно тебя не было. Вернись на трек — отметь вес, это всего одно число.",
+
+  // Height & BMI (private only)
+  btn_height: "📏 Рост",
+  height_ask: "📏 Укажи свой рост в сантиметрах (например: 175):",
+  height_invalid: "❌ Рост должен быть числом от 100 до 250 см.",
+  height_saved: (cm: number) => `📏 Рост сохранён: ${cm} см. Теперь буду показывать ИМТ.`,
+  me_bmi: (bmi: string, emoji: string, label: string) => `${emoji} ИМТ: ${bmi} (${label})`,
+
+  // Goal forecast
+  goal_forecast: (date: string, days: number) =>
+    `\n📅 При текущем темпе цель примерно ${date} (через ${days} ${pluralDays(days)})`,
+
+  // Personal weekly digest (private only — may include absolute weight)
+  btn_digest: (on: boolean) => `📬 Личный дайджест: ${on ? "ВКЛ ✅" : "ВЫКЛ ⬜️"}`,
+  digest_toggled: (on: boolean) =>
+    on ? "📬 Личный дайджест включён ✅" : "📬 Личный дайджест выключен ⬜️",
+  digest_title: "📬 Твой дайджест за неделю",
+  digest_week: (delta: string) => `За неделю: ${delta}`,
+  digest_current: (weight: string) => `⚖️ Сейчас: ${weight} кг`,
+  digest_streak: (days: number) => `🔥 Серия: ${days} ${pluralDays(days)} подряд`,
+  digest_no_streak: "🔁 Серии пока нет — начни новую сегодня!",
+  digest_goal: (remaining: string, percent: number) =>
+    `🎯 До цели: ${remaining} кг (${percent}%)`,
+  digest_goal_reached: "🎯 Цель достигнута! 🎉",
+  digest_footer: "Так держать! 💪",
+
+  // Admin: ping dropped users, cron status
+  admin_ping_sent: (name: string) => `🔔 Напоминание отправлено: ${name}`,
+  admin_ping_failed: (name: string) => `⚠️ Не удалось написать ${name} (возможно, не запускал бота).`,
+  admin_dash_jobs_header: "🗓 Последние задачи:",
+  admin_dash_job_line: (job: string, status: string, when: string) =>
+    `• ${job}: ${status} ${when}`,
 
   // Chart
   chart_pick_period: "📊 Выбери период для графика:",
