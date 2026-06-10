@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { logError } from "./logging";
+import { pickMemeObject } from "./meme";
 
 const TIMEOUT_MS = 180000; // 3 min — image gen can be slow
 
@@ -39,31 +40,15 @@ function containsAnimalWord(text: string): boolean {
   return tokens.some((t) => ANIMAL_WORDS.has(t));
 }
 
-/** Safe fallback objects (food or items only) when object is an animal or invalid. */
-const SAFE_STICKER_OBJECTS = [
-  "бутылка воды",
-  "пачка пельменей",
-  "средний арбуз",
-  "упаковка сливочного масла",
-  "банка Nutella",
-  "пара кроссовок",
-  "толстая книга",
-  "поллитра мороженого",
-  "бутылка вина",
-  "пара зимних сапог",
-  "ноутбук с зарядкой",
-  "средняя тыква",
-  "упаковка стирального порошка",
-];
-
-/** Returns object text safe for sticker: food or item only, never an animal. */
-function getSafeStickerObject(objectRu: string): string {
+/**
+ * Returns object text safe for the sticker: food or item only, never an animal.
+ * When the requested object is missing or an animal, falls back to an object
+ * whose real weight is close to `sumKg` so the analogy still matches the change.
+ */
+function getSafeStickerObject(objectRu: string, sumKg: number): string {
   const normalized = normalizeObjectInput(objectRu);
-  if (!normalized || normalized.length < 2) {
-    return SAFE_STICKER_OBJECTS[Math.floor(Math.random() * SAFE_STICKER_OBJECTS.length)];
-  }
-  if (containsAnimalWord(normalized)) {
-    return SAFE_STICKER_OBJECTS[Math.floor(Math.random() * SAFE_STICKER_OBJECTS.length)];
+  if (!normalized || normalized.length < 2 || containsAnimalWord(normalized)) {
+    return pickMemeObject(sumKg);
   }
   return normalized;
 }
@@ -86,7 +71,7 @@ export async function getStickerImageUrl(
   }
 
   const sumStr = sumKg >= 0 ? `+${sumKg}` : String(sumKg);
-  const objectText = getSafeStickerObject(objectRu);
+  const objectText = getSafeStickerObject(objectRu, sumKg);
 
   const prompt = `
 Telegram sticker. Transparent background. Square composition.

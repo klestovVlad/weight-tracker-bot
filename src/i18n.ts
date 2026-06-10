@@ -39,12 +39,31 @@ export const RU = {
 
   // Admin menu
   admin_menu_title: "🛠 Панель администратора",
+  btn_admin_dashboard: "📊 Дашборд",
   btn_admin_day_status: "📋 Статус дня",
   btn_admin_send_report: "📣 Отправить отчёт",
   btn_admin_debug_meme: "🔧 Тест мем",
+  btn_admin_memes_on: "🖼 Мемы: ВКЛ",
+  btn_admin_memes_off: "🖼 Мемы: ВЫКЛ",
+  admin_memes_toggled: (enabled: boolean) =>
+    enabled ? "🖼 Мемы включены" : "🖼 Мемы выключены",
+
+  // Admin dashboard (names and counts only — never weights)
+  admin_dashboard_title: "📊 Дашборд",
+  admin_dash_total: (count: number) => `👥 Всего участников: ${count}`,
+  admin_dash_today: (count: number, total: number) =>
+    `✅ Отметились сегодня: ${count} из ${total}`,
+  admin_dash_week: (count: number, total: number) =>
+    `📅 Отметились за неделю: ${count} из ${total}`,
+  admin_dash_dropped: (count: number) =>
+    `🛌 Давно не заходили, 5+ дней (${count}):`,
+  admin_dash_dropped_item: (name: string, days: number) =>
+    `• ${name} — ${days} дн.`,
+  admin_dash_vacation: (count: number) => `🌴 В отпуске: ${count}`,
+  admin_dash_goal: (count: number) => `🎯 С целью: ${count}`,
   debug_meme_ask: "Введи дельту в кг (число, например -1.9 или 0.5):",
   debug_meme_sending: "Генерирую картинку…",
-  debug_meme_failed: "Не удалось сгенерировать изображение. Проверь OPENAI_API_KEY и лимиты DALL-E.",
+  debug_meme_failed: "Не удалось сгенерировать изображение. Проверь OPENAI_API_KEY и лимиты OpenAI Images.",
   debug_meme_sent: (object: string) => `Мем: «${object}»`,
   admin_day_status_title: (date: string) => `📋 Статус дня — ${date}`,
   admin_checked_in: (count: number) => `✅ Отметились (${count}):`,
@@ -212,7 +231,6 @@ ${link}`,
     `• <b>${name}</b>: первая запись | всего —`,
   report_daily_no_prev: (name: string, totalDelta: string) =>
     `• <b>${name}</b>: сегодня — | всего ${totalDelta}`,
-  report_no_entries_today: "📭 Сегодня никто не отметился.",
   report_achievements_header: "🏅 Новые ачивки сегодня:",
   report_achievement_line: (name: string, icon: string, days: number) =>
     `• <b>${name}</b>: ${icon} ${days} ${pluralDays(days)} подряд`,
@@ -229,7 +247,6 @@ ${link}`,
     `• <b>${name}</b>: неделя ${weekDelta} | всего ${totalDelta} (${checkins}/7)`,
   report_weekly_no_week: (name: string, totalDelta: string, checkins: number) =>
     `• <b>${name}</b>: неделя — | всего ${totalDelta} (${checkins}/7)`,
-  report_no_entries_week: "📭 На этой неделе никто не отмечался.",
 
   // Monthly report
   report_monthly_header: "📅 Итоги месяца:\n",
@@ -237,7 +254,6 @@ ${link}`,
     `• <b>${name}</b>: месяц ${monthDelta} (${checkins} отм.) | всего ${totalDelta}`,
   report_monthly_no_delta: (name: string, checkins: number, totalDelta: string) =>
     `• <b>${name}</b>: месяц — (${checkins} отм.) | всего ${totalDelta}`,
-  report_no_entries_month: "📭 В этом месяце никто не отмечался.",
 
   // Goal
   btn_goal: "🎯 Цель",
