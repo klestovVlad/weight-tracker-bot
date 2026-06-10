@@ -23,6 +23,7 @@ import {
   handleUserSettingsMenu,
   handleSetHeightStart,
   handleToggleDigest,
+  handleSetReminderHourStart,
 } from "./settings-user";
 
 export async function handleCallbackQuery(
@@ -146,6 +147,8 @@ export async function handleCallbackQuery(
       return handleUserSettingsMenu(env, message.chat.id, userId, isPrivate);
     case "settings_set_height":
       return handleSetHeightStart(env, message.chat.id, userId, isPrivate);
+    case "settings_set_reminder_hour":
+      return handleSetReminderHourStart(env, message.chat.id, userId, isPrivate);
     case "settings_toggle_digest":
       return handleToggleDigest(env, message.chat.id, userId, isPrivate);
 
@@ -196,6 +199,13 @@ export async function handleCallbackQuery(
 
     case "owner_settings_menu":
       return admin.handleOwnerSettingsMenu(env, message.chat.id, isOwnerUser, isPrivate);
+
+    case "owner_seasons_menu":
+      return admin.handleOwnerSeasonsMenu(env, message.chat.id, isOwnerUser, isPrivate);
+    case "owner_season_start":
+      return admin.handleOwnerSeasonStart(env, message.chat.id, userId, isOwnerUser, isPrivate);
+    case "owner_season_end":
+      return admin.handleOwnerSeasonEnd(env, message.chat.id, isOwnerUser, isPrivate);
 
     case "owner_send_report_menu":
       return admin.handleOwnerReportDestMenu(env, message.chat.id, isOwnerUser, isPrivate);

@@ -3,7 +3,8 @@ import { sendMessage } from "../telegram/api";
 import { RU } from "../i18n";
 import { getStreakIcon, getNextStreakLevel, STREAK_LEVELS } from "../utils";
 import { getCrownUserId } from "../db/settings";
-import { getUserStreak } from "../db/weights";
+import { getUserStreak, getOverallFirstAndLast } from "../db/weights";
+import { earnedLossBadges, nextLossBadge } from "../helpers/badges";
 
 function progressBar(current: number, target: number, length: number = 12): string {
   if (target <= 0) return "";
@@ -18,9 +19,10 @@ export async function handleMyAchievements(
   chatId: number,
   userId: number
 ): Promise<Response> {
-  const [streakInfo, crownUserId] = await Promise.all([
+  const [streakInfo, crownUserId, overall] = await Promise.all([
     getUserStreak(env.DB, userId),
     getCrownUserId(env.DB),
+    getOverallFirstAndLast(env.DB, userId),
   ]);
   const streak = streakInfo?.length ?? 0;
   const icon = getStreakIcon(streak);
@@ -47,6 +49,22 @@ export async function handleMyAchievements(
     for (const level of STREAK_LEVELS) {
       const reached = streak >= level.days;
       text += (reached ? RU.achievements_level_done(level.icon, level.days) : RU.achievements_level_in_progress(level.icon, level.days)) + "\n";
+    }
+  }
+
+  // Weight-loss badges (since start).
+  if (overall && overall.totalEntries >= 2) {
+    const lostKg = Math.max(0, overall.firstWeight - overall.lastWeight);
+    if (lostKg > 0) {
+      text += "\n\n" + RU.achievements_loss_title(lostKg.toFixed(1)) + "\n";
+      const earned = earnedLossBadges(lostKg);
+      if (earned.length > 0) {
+        text += RU.achievements_loss_badges(earned.map((b) => b.icon).join(" ")) + "\n";
+      }
+      const next = nextLossBadge(lostKg);
+      if (next) {
+        text += RU.achievements_loss_next(next.icon, next.label, (next.kg - lostKg).toFixed(1));
+      }
     }
   }
 

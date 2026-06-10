@@ -35,6 +35,12 @@ export const RU = {
   btn_back: "⬅️ Назад",
   btn_settings: "⚙️ Настройки",
   settings_user_title: "⚙️ Твои настройки",
+  btn_reminder_hour: (hour: number) =>
+    `⏰ Время напоминания: ${String(hour).padStart(2, "0")}:00`,
+  reminder_hour_ask: "⏰ Во сколько напоминать? Укажи час от 0 до 23 (например: 9):",
+  reminder_hour_invalid: "❌ Укажи час числом от 0 до 23.",
+  reminder_hour_saved: (hour: number) =>
+    `⏰ Буду напоминать в ${String(hour).padStart(2, "0")}:00.`,
   btn_status: "⚙️ Статус",
   btn_setgroup: "👥 Привязать группу",
   btn_admin: "🛠 Админ",
@@ -134,6 +140,25 @@ export const RU = {
   admin_dash_jobs_header: "🗓 Последние задачи:",
   admin_dash_job_line: (job: string, status: string, when: string) =>
     `• ${job}: ${status} ${when}`,
+
+  // Seasons / challenges
+  btn_admin_seasons: "🏁 Сезоны",
+  btn_season_start: "▶️ Начать сезон",
+  btn_season_end: "⏹ Завершить сезон",
+  seasons_none: "🏁 Сейчас нет активного сезона.\n\nНачни новый, чтобы запустить челлендж для команды.",
+  seasons_active: (name: string, daysLeft: number, lost: string) =>
+    `🏁 Сезон «${name}»\nОсталось дней: ${daysLeft}\nКоманда сбросила: ${lost} кг`,
+  seasons_goal_line: (lost: string, goal: string, percent: number) =>
+    `🎯 Цель: ${lost} из ${goal} кг (${percent}%)`,
+  season_setup_ask:
+    "Опиши сезон в формате:\nНазвание | дней | цель_кг\n\nНапример: Лето | 28 | 20\nЦель можно опустить: Лето | 28",
+  season_setup_invalid:
+    "❌ Не понял формат. Нужно: Название | дней | цель_кг\nНапример: Лето | 28 | 20",
+  season_created: (name: string, days: number) =>
+    `🏁 Сезон «${name}» начат на ${days} ${pluralDays(days)}! Поехали 💪`,
+  season_ended: "⏹ Сезон завершён.",
+  season_banner: (name: string, daysLeft: number, lost: string) =>
+    `🏁 Сезон «${name}» · осталось ${daysLeft} ${pluralDays(daysLeft)} · команда сбросила ${lost} кг`,
 
   // Chart
   chart_pick_period: "📊 Выбери период для графика:",
@@ -345,6 +370,11 @@ ${link}`,
     `Начало положено 🙂 До первой ачивки (🔹 3 ${pluralDays(3)}) осталось: ${left} ${pluralDays(left)}`,
   achievements_legend: "Ты легенда 👑 Стрик 90+ дней!",
   achievements_history_title: "История уровней:",
+  achievements_loss_title: (lost: string) => `🏆 Сброшено всего: ${lost} кг`,
+  achievements_loss_badges: (badges: string) => `Бейджи: ${badges}`,
+  achievements_loss_next: (icon: string, label: string, left: string) =>
+    `До бейджа ${icon} ${label} осталось ${left} кг`,
+  achievements_loss_none: "Бейджи за вес появятся после первых −3 кг.",
 
   // Common
   no_data: "—",

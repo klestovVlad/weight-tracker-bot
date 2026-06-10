@@ -3,6 +3,8 @@ import { sendMessage } from "../telegram/api";
 import { RU } from "../i18n";
 import { getSetting, getBoolFlag, setBoolFlag } from "../db/settings";
 import { getRecentJobStatuses } from "../db/cron-runs";
+import { getActiveSeason, endSeason } from "../db/seasons";
+import { computeSeasonProgress } from "../helpers/season";
 import { FEATURE_FLAGS, getFlagDef } from "../config";
 import { getAllUsers } from "../db/users";
 import {
@@ -38,6 +40,7 @@ const adminMenuKeyboard: InlineKeyboardMarkup = {
       { text: RU.btn_admin_day_status, callback_data: "owner_day_status" },
     ],
     [{ text: RU.btn_admin_send_report, callback_data: "owner_send_report_menu" }],
+    [{ text: RU.btn_admin_seasons, callback_data: "owner_seasons_menu" }],
     [
       { text: RU.btn_admin_settings, callback_data: "owner_settings_menu" },
       { text: RU.btn_admin_debug_meme, callback_data: "owner_debug_meme" },
@@ -190,6 +193,73 @@ export async function handleOwnerDashboard(
 
   return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, lines.join("\n"), {
     reply_markup: { inline_keyboard: rows },
+  });
+}
+
+export async function handleOwnerSeasonsMenu(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
+
+  const today = getTodayDate();
+  const season = await getActiveSeason(env.DB, today);
+
+  let text: string;
+  const rows: InlineKeyboardButton[][] = [];
+
+  if (!season) {
+    text = RU.seasons_none;
+    rows.push([{ text: RU.btn_season_start, callback_data: "owner_season_start" }]);
+  } else {
+    const progress = await computeSeasonProgress(env, season, today);
+    text = RU.seasons_active(season.name, progress.daysLeft, progress.teamLostKg.toFixed(1));
+    if (progress.goalKg != null && progress.percent != null) {
+      text +=
+        "\n" +
+        RU.seasons_goal_line(
+          progress.teamLostKg.toFixed(1),
+          progress.goalKg.toFixed(1),
+          progress.percent,
+        );
+    }
+    rows.push([{ text: RU.btn_season_end, callback_data: "owner_season_end" }]);
+  }
+
+  rows.push([{ text: RU.btn_back, callback_data: "owner_admin_menu" }]);
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, {
+    reply_markup: { inline_keyboard: rows },
+  });
+}
+
+export async function handleOwnerSeasonStart(
+  env: Env,
+  chatId: number,
+  userId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
+  await upsertPendingAction(env.DB, userId, "season_setup");
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.season_setup_ask);
+}
+
+export async function handleOwnerSeasonEnd(
+  env: Env,
+  chatId: number,
+  isOwnerUser: boolean,
+  isPrivate: boolean,
+): Promise<Response> {
+  if (!isAuthorized(isOwnerUser, isPrivate)) return OK();
+  const today = getTodayDate();
+  const season = await getActiveSeason(env.DB, today);
+  if (season) await endSeason(env.DB, season.id, today);
+  return sendMessage(env.TELEGRAM_BOT_TOKEN, chatId, RU.season_ended, {
+    reply_markup: {
+      inline_keyboard: [[{ text: RU.btn_back, callback_data: "owner_admin_menu" }]],
+    },
   });
 }
 
