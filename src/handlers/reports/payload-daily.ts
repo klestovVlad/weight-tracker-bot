@@ -48,6 +48,7 @@ export async function buildDailyPayload(env: Env): Promise<ReportPayload | null>
   const submitted: ReportUserDelta[] = [];
   const goalsInfo: ReportGoalsInfo[] = [];
   let sumDayDelta = 0;
+  let sumTotalDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
   let firstEntryCount = 0;
@@ -79,6 +80,7 @@ export async function buildDailyPayload(env: Env): Promise<ReportPayload | null>
     let totalDelta: number | null = null;
     if (overallStats && overallStats.totalEntries >= 2) {
       totalDelta = overallStats.lastWeight - overallStats.firstWeight;
+      sumTotalDelta += totalDelta;
     }
 
     let dayDelta: number | null = null;
@@ -154,6 +156,7 @@ export async function buildDailyPayload(env: Env): Promise<ReportPayload | null>
     missing,
     hasRegressions,
     sumDayDelta: Math.round(sumDayDelta * 10) / 10,
+    sumTotalDelta: Math.round(sumTotalDelta * 10) / 10,
     avgDayDelta:
       countWithDelta > 0
         ? Math.round((sumDayDelta / countWithDelta) * 100) / 100

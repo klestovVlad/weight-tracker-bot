@@ -57,6 +57,7 @@ export async function buildMonthlyPayload(
   const submitted: ReportUserDelta[] = [];
   const goalsInfo: ReportGoalsInfo[] = [];
   let sumMonthDelta = 0;
+  let sumTotalDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
 
@@ -69,6 +70,7 @@ export async function buildMonthlyPayload(
     let totalDelta: number | null = null;
     if (overallStats && overallStats.totalEntries >= 2) {
       totalDelta = overallStats.lastWeight - overallStats.firstWeight;
+      sumTotalDelta += totalDelta;
     }
 
     let monthDelta: number | null = null;
@@ -130,6 +132,7 @@ export async function buildMonthlyPayload(
     missing,
     hasRegressions,
     sumDayDelta: Math.round(sumMonthDelta * 10) / 10,
+    sumTotalDelta: Math.round(sumTotalDelta * 10) / 10,
     avgDayDelta:
       countWithDelta > 0
         ? Math.round((sumMonthDelta / countWithDelta) * 100) / 100

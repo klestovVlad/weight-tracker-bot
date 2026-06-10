@@ -45,6 +45,7 @@ export async function buildWeeklyPayload(
   const submitted: ReportUserDelta[] = [];
   const goalsInfo: ReportGoalsInfo[] = [];
   let sumWeekDelta = 0;
+  let sumTotalDelta = 0;
   let countWithDelta = 0;
   let hasRegressions = false;
   let leaderCandidate: { name: string; dayDelta: number; userId: number } | null = null;
@@ -60,6 +61,7 @@ export async function buildWeeklyPayload(
     let totalDelta: number | null = null;
     if (overallStats && overallStats.totalEntries >= 2) {
       totalDelta = overallStats.lastWeight - overallStats.firstWeight;
+      sumTotalDelta += totalDelta;
     }
 
     let weekDelta: number | null = null;
@@ -120,6 +122,7 @@ export async function buildWeeklyPayload(
     missing,
     hasRegressions,
     sumDayDelta: Math.round(sumWeekDelta * 10) / 10,
+    sumTotalDelta: Math.round(sumTotalDelta * 10) / 10,
     avgDayDelta:
       countWithDelta > 0
         ? Math.round((sumWeekDelta / countWithDelta) * 100) / 100

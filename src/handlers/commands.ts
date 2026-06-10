@@ -368,6 +368,7 @@ export async function handleDebugOpenai(
     missing: ["Ольга", "Дмитрий"],
     hasRegressions: true,
     sumDayDelta: -0.3,
+    sumTotalDelta: -5.0,
     avgDayDelta: -0.15,
     firstEntryCount: 1,
     firstEntryNames: ["Иван"],

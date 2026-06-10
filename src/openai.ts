@@ -1,6 +1,6 @@
 import { Env, ReportPayload, HumanizedReport } from "./types";
 import { logError } from "./helpers/logging";
-import { validateGptMeme, analogyExamplesForWeight } from "./helpers/meme";
+import { validateGptMeme, analogyExamplesForWeight, headlineDeltaKg } from "./helpers/meme";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_LENGTH = 600;
@@ -33,7 +33,7 @@ function analogySection(absKg: number): string {
   const kg = absKg.toFixed(1);
   const examples = analogyExamplesForWeight(absKg);
   return `WEIGHT ANALOGY:
-Make the team's total change tangible by comparing ${kg} кг to ONE real, everyday object that weighs about the same — roughly ${kg} кг (within ±30%). The object's REAL weight must be close to ${kg} кг; that is the whole point. Do NOT pick objects whose weight is wildly off, and avoid things with no stable weight.
+Make the team's cumulative weight loss tangible by comparing ${kg} кг (total lost since the start) to ONE real, everyday object that weighs about the same — roughly ${kg} кг (within ±30%). The object's REAL weight must be close to ${kg} кг; that is the whole point. Do NOT pick objects whose weight is wildly off, and avoid things with no stable weight.
 Good objects near this weight: ${examples}.
 Pick something recognizable and a little fun. Weave it into one sentence, e.g. "Это примерно как ведро воды."
 SAME OBJECT IN BOTH PLACES: use ONE object only. Put the EXACT SAME phrase you used in the sentence into meme.object — identical words. meme.object must be short (1–4 words), an everyday food or item (never an animal or a person), suitable for an image.`;
@@ -137,15 +137,15 @@ ${RESPONSE_FORMAT_WITH_MEME}`;
 }
 
 function getSystemPrompt(payload: ReportPayload): string {
-  const absKg = Math.abs(payload.sumDayDelta);
   switch (payload.kind) {
     case "weekly":
-      return weeklyPrompt(absKg);
+      // Analogy is grounded in the cumulative team loss, not the week's change.
+      return weeklyPrompt(Math.abs(headlineDeltaKg(payload)));
     case "monthly":
-      return monthlyPrompt(absKg);
+      return monthlyPrompt(Math.abs(headlineDeltaKg(payload)));
     case "daily":
     default:
-      return dailyPrompt(absKg);
+      return dailyPrompt(Math.abs(payload.sumDayDelta));
   }
 }
 
@@ -154,6 +154,7 @@ function buildMinimalPayloadForApi(payload: ReportPayload): object {
   const base: Record<string, unknown> = {
     date: payload.date,
     sumDayDelta: payload.sumDayDelta,
+    sumTotalDelta: payload.sumTotalDelta,
     countSubmitted: payload.countSubmitted,
     countMissing: payload.countMissing,
     leader: payload.leader ?? undefined,
@@ -206,6 +207,8 @@ function extractAllowedNumbers(payload: ReportPayload): Set<string> {
   allowed.add(String(payload.submitted.length));
   allowed.add(String(payload.missing.length));
   allowed.add(String(Math.abs(payload.sumDayDelta).toFixed(1)));
+  allowed.add(String(Math.abs(payload.sumTotalDelta).toFixed(1)));
+  allowed.add(String(Math.abs(payload.sumTotalDelta)));
   allowed.add(String(Math.abs(payload.avgDayDelta).toFixed(2)));
   if (payload.leader) {
     allowed.add(Math.abs(payload.leader.dayDelta).toFixed(1));
