@@ -33,6 +33,8 @@ export interface ReportPayload {
   hasRegressions: boolean;
   /** Sum of dayDelta across all submitted users (team total change for the period, kg). */
   sumDayDelta: number;
+  /** Sum of totalDelta across submitted users (team cumulative change since start, kg; negative = lost). Used for the weight analogy/meme. */
+  sumTotalDelta: number;
   /** Average dayDelta per submitted user (kg). */
   avgDayDelta: number;
   /** Number of users with their first ever entry in this period. */

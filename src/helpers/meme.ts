@@ -1,4 +1,15 @@
-import type { GptMeme } from "../types";
+import type { GptMeme, ReportPayload } from "../types";
+
+/**
+ * The signed team change to feature in the analogy/meme: the cumulative change
+ * since start (more dramatic and tangible) when there's meaningful data, else
+ * the period change. Negative = team lost weight.
+ */
+export function headlineDeltaKg(payload: ReportPayload): number {
+  return Math.abs(payload.sumTotalDelta) >= 0.5
+    ? payload.sumTotalDelta
+    : payload.sumDayDelta;
+}
 
 /** Russian letters, spaces, hyphen. No digits, no person names. */
 const OBJECT_REGEX = /^[а-яёА-ЯЁ\s\-]{2,60}$/;

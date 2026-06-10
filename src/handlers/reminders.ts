@@ -1,13 +1,65 @@
 import { Env } from "../types";
 import { sendMessage } from "../telegram/api";
-import { getTodayDate, isSunday, getStartOfWeek } from "../utils";
+import { getTodayDate, isSunday, getStartOfWeek, getPreviousDay, getDaysBetween } from "../utils";
 import { getAllUsers } from "../db/users";
-import { getWeightForDate, countUserEntriesInRange } from "../db/weights";
-import { isOnVacation, getWeighFrequency } from "../db/user-settings";
+import {
+  getWeightForDate,
+  countUserEntriesInRange,
+  getUserStreak,
+  getLastWeight,
+} from "../db/weights";
+import { getGoal, computeGoalProgress } from "../db/goals";
+import { isOnVacation, getWeighFrequency, type WeighFrequency } from "../db/user-settings";
 import { logError } from "../helpers/logging";
+import { RU } from "../i18n";
+import { pickReminderKind, type ReminderContext } from "../helpers/reminder-text";
 
-const REMINDER_TEXT_DAILY = "⏰ Напоминалка: отметь вес 🙂\nМожно просто числом, например: 87.4";
-const REMINDER_TEXT_WEEKLY = "⏰ Недельная напоминалка: отметь вес за неделю 🙂\nМожно просто числом, например: 87.4";
+/** Maps a chosen reminder kind to its localized message. */
+function reminderTextFor(
+  ctx: ReminderContext & { frequency: WeighFrequency },
+): string {
+  switch (pickReminderKind(ctx)) {
+    case "onboarding":
+      return RU.reminder_onboarding;
+    case "goal":
+      return RU.reminder_goal((ctx.goalRemainingKg ?? 0).toFixed(1));
+    case "streak":
+      return RU.reminder_streak(ctx.streakAtRisk);
+    case "comeback":
+      return RU.reminder_comeback;
+    default:
+      return ctx.frequency === "weekly" ? RU.reminder_weekly : RU.reminder_daily;
+  }
+}
+
+/** Gathers the personalization context for a user's reminder. */
+async function buildReminderContext(
+  env: Env,
+  userId: number,
+  frequency: WeighFrequency,
+  today: string,
+): Promise<ReminderContext> {
+  const yesterday = getPreviousDay(today);
+  const [streakInfo, last] = await Promise.all([
+    getUserStreak(env.DB, userId),
+    getLastWeight(env.DB, userId),
+  ]);
+
+  const streakAtRisk =
+    streakInfo && streakInfo.lastDate === yesterday ? streakInfo.length : 0;
+  const daysSinceLast = last ? getDaysBetween(last.date, today) : null;
+
+  let goalRemainingKg: number | null = null;
+  if (last) {
+    const goal = await getGoal(env.DB, userId);
+    if (goal) {
+      const progress = computeGoalProgress(goal, last.weight_kg);
+      goalRemainingKg = progress.reached ? null : progress.remainingKg;
+    }
+  }
+
+  return { frequency, streakAtRisk, daysSinceLast, goalRemainingKg };
+}
 
 export interface ReminderStats {
   sent: number;
@@ -86,7 +138,8 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
         continue;
       }
 
-      const reminderText = frequency === "weekly" ? REMINDER_TEXT_WEEKLY : REMINDER_TEXT_DAILY;
+      const ctx = await buildReminderContext(env, user.user_id, frequency, today);
+      const reminderText = reminderTextFor(ctx);
       const response = await sendMessage(
         env.TELEGRAM_BOT_TOKEN,
         user.user_id,
@@ -94,7 +147,7 @@ export async function runReminders(env: Env): Promise<ReminderStats> {
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: "✅ Внести вес", callback_data: "menu_enter_weight" }]
+              [{ text: RU.btn_enter_weight, callback_data: "menu_enter_weight" }]
             ]
           }
         }

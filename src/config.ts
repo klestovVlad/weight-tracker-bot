@@ -20,6 +20,7 @@ export interface FeatureFlag {
 
 export const FEATURE_FLAGS: FeatureFlag[] = [
   { key: "memes_enabled", label: "🖼 Мемы в отчётах", default: true },
+  { key: "team_chart_enabled", label: "📊 График в отчётах", default: true },
 ];
 
 export function getFlagDef(key: string): FeatureFlag | undefined {

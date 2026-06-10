@@ -1,8 +1,10 @@
 import { Env, ReportPayload } from "../../types";
-import { sendMessage, sendSticker } from "../../telegram/api";
-import { getSetting } from "../../db/settings";
+import { sendMessage, sendSticker, sendPhoto } from "../../telegram/api";
+import { getBoolFlag } from "../../db/settings";
+import { RU } from "../../i18n";
 import { humanizeReport } from "../../openai";
-import { pickMemeObject } from "../../helpers/meme";
+import { pickMemeObject, headlineDeltaKg } from "../../helpers/meme";
+import { buildTeamChartUrl } from "../../helpers/team-chart";
 import { getStickerImageUrl } from "../../helpers/sticker-image";
 import { logError } from "../../helpers/logging";
 
@@ -14,40 +16,52 @@ export async function sendReport(
   const result = await humanizeReport(payload, env);
   const { message, meme } = result;
 
-  const withMeme =
-    payload.kind === "weekly" || payload.kind === "monthly";
-  const memesDisabled = (await getSetting(env.DB, "memes_enabled")) === "false";
-  const memesEnabled = withMeme && !memesDisabled;
+  const withImages = payload.kind === "weekly" || payload.kind === "monthly";
 
-  // Report text first, then image (sticker or photo)
+  // Report text first.
   if (!message.trim()) return;
   await sendMessage(env.TELEGRAM_BOT_TOKEN, publicChatId, message, {
     parse_mode: "HTML",
   });
 
-  if (memesEnabled) {
-    const baseObject = meme?.object ?? pickMemeObject(payload.sumDayDelta);
-    const memeObject = baseObject.startsWith("sticker:") || baseObject.startsWith("[sticker]")
-      ? baseObject
-      : `sticker: ${baseObject}`;
-    const imageResult = await getStickerImageUrl(
-      env,
-      memeObject,
-      payload.sumDayDelta,
-    );
+  if (!withImages) return;
+
+  // Team trend chart (deltas only — privacy-safe), then the mascot sticker.
+  if (await getBoolFlag(env.DB, "team_chart_enabled", true)) {
+    const title =
+      payload.kind === "monthly"
+        ? RU.team_chart_title_monthly
+        : RU.team_chart_title_weekly;
+    const chartUrl = buildTeamChartUrl(payload, title);
+    if (chartUrl) {
+      try {
+        await sendPhoto(env.TELEGRAM_BOT_TOKEN, publicChatId, chartUrl);
+      } catch (error) {
+        logError("Team chart send failed", error);
+      }
+    }
+  }
+
+  if (await getBoolFlag(env.DB, "memes_enabled", true)) {
+    // Meme/sticker features the cumulative team loss, not just the period change.
+    const headlineKg = headlineDeltaKg(payload);
+    const baseObject = meme?.object ?? pickMemeObject(headlineKg);
+    const memeObject =
+      baseObject.startsWith("sticker:") || baseObject.startsWith("[sticker]")
+        ? baseObject
+        : `sticker: ${baseObject}`;
+    const imageResult = await getStickerImageUrl(env, memeObject, headlineKg);
     if (
       imageResult != null &&
       (typeof imageResult === "string" || "b64" in imageResult)
     ) {
-      await sendSticker(
-        env.TELEGRAM_BOT_TOKEN,
-        publicChatId,
-        imageResult,
-      );
+      await sendSticker(env.TELEGRAM_BOT_TOKEN, publicChatId, imageResult);
     } else if (imageResult != null && "error" in imageResult) {
       logError(`Report meme image failed: ${imageResult.error}`);
     } else {
-      logError("Report meme image: no URL/b64 returned (check OPENAI_API_KEY and limits)");
+      logError(
+        "Report meme image: no URL/b64 returned (check OPENAI_API_KEY and limits)",
+      );
     }
   }
 }
